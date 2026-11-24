@@ -16,12 +16,12 @@ public class Goal {
     public String comment;
 
     // Настройки графика
-    public String frequency; // "weekly", "twice_month", "monthly"
-    public int dayOfWeek;
-    public int dayOfMonth1;
-    public int dayOfMonth2;
-    public double paymentAmount;
-    public String endDate;
+    public String frequency; 
+    public int dayOfWeek; 
+    public int dayOfMonth1; 
+    public int dayOfMonth2; 
+    public double paymentAmount; 
+    public String endDate; 
 
     // Новое поле для заморозки
     public boolean isFrozen = false;
