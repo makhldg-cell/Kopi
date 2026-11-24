@@ -10,19 +10,19 @@
         
         <EditText android:id="@+id/etName" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Название цели" />
         <EditText android:id="@+id/etTargetAmount" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="К чему стремимся (Сумма)" android:inputType="numberDecimal" android:layout_marginTop="8dp"/>
+        
         <Spinner android:id="@+id/spinnerCurrency" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"/>
         
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Частота взносов:" android:textStyle="bold" android:layout_marginTop="16dp"/>
         <Spinner android:id="@+id/spinnerFrequency" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"/>
         
-        <!-- Дни недели -->
-        <Spinner android:id="@+id/spinnerDayOfWeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:visibility="gone"/>
+        <!-- Поля ввода вместо выпадающих списков -->
+        <EditText android:id="@+id/etDayOfWeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="День недели (1-7, где 1-Пн)" android:inputType="number" android:layout_marginTop="8dp" android:visibility="gone"/>
         
-        <!-- Числа месяца -->
-        <Spinner android:id="@+id/spinnerDayOfMonth1" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:visibility="gone"/>
-        <Spinner android:id="@+id/spinnerDayOfMonth2" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:visibility="gone"/>
+        <EditText android:id="@+id/etDayOfMonth1" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Число месяца (1-31)" android:inputType="number" android:layout_marginTop="8dp" android:visibility="gone"/>
+        <EditText android:id="@+id/etDayOfMonth2" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Второе число месяца (1-31)" android:inputType="number" android:layout_marginTop="8dp" android:visibility="gone"/>
         
-        <EditText android:id="@+id/etPaymentAmount" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Сумма взноса" android:inputType="numberDecimal" android:layout_marginTop="8dp"/>
+        <EditText android:id="@+id/etPaymentAmount" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Сумма одного взноса" android:inputType="numberDecimal" android:layout_marginTop="8dp"/>
         
         <EditText android:id="@+id/etLink" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Ссылка на товар (опционально)" android:layout_marginTop="8dp"/>
         <EditText android:id="@+id/etComment" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Комментарий" android:layout_marginTop="8dp"/>
