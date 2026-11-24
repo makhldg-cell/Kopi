@@ -17,6 +17,8 @@ public class AddGoalActivity extends AppCompatActivity {
     private Spinner spinnerFrequency;
     private EditText etDayOfWeek, etDayOfMonth1, etDayOfMonth2, etTargetAmount, etPaymentAmount;
     private TextView tvCalculatedDate;
+    private int editGoalId = -1;
+    private Goal existingGoal;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,6 +48,35 @@ public class AddGoalActivity extends AppCompatActivity {
         adapterFreq.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerFrequency.setAdapter(adapterFreq);
 
+        // Проверяем, редактируем ли мы цель
+        editGoalId = getIntent().getIntExtra("edit_goal_id", -1);
+        if (editGoalId != -1) {
+            existingGoal = AppDatabase.getInstance(this).goalDao().getGoalById(editGoalId);
+            if (existingGoal != null) {
+                etName.setText(existingGoal.name);
+                etTargetAmount.setText(String.valueOf(existingGoal.targetAmount));
+                etPaymentAmount.setText(String.valueOf(existingGoal.paymentAmount));
+                etLink.setText(existingGoal.link);
+                etComment.setText(existingGoal.comment);
+                
+                int freqPos = 0;
+                if (existingGoal.frequency.equals("Два раза в месяц")) freqPos = 1;
+                else if (existingGoal.frequency.equals("Раз в месяц")) freqPos = 2;
+                spinnerFrequency.setSelection(freqPos);
+
+                int curPos = 0;
+                if (existingGoal.currency.equals("USD")) curPos = 1;
+                else if (existingGoal.currency.equals("EUR")) curPos = 2;
+                spinnerCurrency.setSelection(curPos);
+
+                if (existingGoal.dayOfWeek > 0) etDayOfWeek.setText(String.valueOf(existingGoal.dayOfWeek));
+                if (existingGoal.dayOfMonth1 > 0) etDayOfMonth1.setText(String.valueOf(existingGoal.dayOfMonth1));
+                if (existingGoal.dayOfMonth2 > 0) etDayOfMonth2.setText(String.valueOf(existingGoal.dayOfMonth2));
+                
+                btnSave.setText("Обновить цель");
+            }
+        }
+
         spinnerFrequency.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -63,24 +94,19 @@ public class AddGoalActivity extends AppCompatActivity {
             public void onNothingSelected(AdapterView<?> parent) {}
         });
 
-        // Слушатель для мгновенного расчета
         TextWatcher watcher = new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) { updateCalculatedDate(); }
-            @Override
-            public void afterTextChanged(Editable s) {}
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { updateCalculatedDate(); }
+            @Override public void afterTextChanged(Editable s) {}
         };
         etPaymentAmount.addTextChangedListener(watcher);
         etTargetAmount.addTextChangedListener(watcher);
 
         btnSave.setOnClickListener(v -> {
             try {
-                Goal goal = new Goal();
+                Goal goal = (existingGoal != null) ? existingGoal : new Goal();
                 goal.name = etName.getText().toString();
                 goal.targetAmount = Double.parseDouble(etTargetAmount.getText().toString());
-                goal.currentAmount = 0;
                 goal.currency = spinnerCurrency.getSelectedItem().toString();
                 goal.link = etLink.getText().toString();
                 goal.comment = etComment.getText().toString();
@@ -98,10 +124,18 @@ public class AddGoalActivity extends AppCompatActivity {
 
                 goal.endDate = DateUtils.calculateEndDate(goal.targetAmount, goal.currentAmount, goal.paymentAmount, goal.frequency, goal.dayOfMonth1, goal.dayOfMonth2);
 
-                long id = AppDatabase.getInstance(this).goalDao().insert(goal);
-                goal.id = (int) id;
+                if (existingGoal == null) {
+                    goal.currentAmount = 0;
+                    long id = AppDatabase.getInstance(this).goalDao().insert(goal);
+                    goal.id = (int) id;
+                } else {
+                    AppDatabase.getInstance(this).goalDao().update(goal);
+                    // Очищаем старый график, так как параметры изменились
+                    AppDatabase.getInstance(this).goalDao().deletePaymentsForGoal(goal.id);
+                }
+                
+                // Генерируем новый график
                 DateUtils.generateSchedule(goal, AppDatabase.getInstance(this));
-
                 finish();
             } catch (Exception e) {
                 Toast.makeText(this, "Проверьте заполнение полей", Toast.LENGTH_SHORT).show();
@@ -118,4 +152,4 @@ public class AddGoalActivity extends AppCompatActivity {
             tvCalculatedDate.setText("Прогноз завершения: " + endDate);
         } catch (Exception ignored) {}
     }
-}
+                        }
