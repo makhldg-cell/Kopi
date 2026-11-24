@@ -47,19 +47,18 @@ public class GoalDetailActivity extends AppCompatActivity {
         ((TextView)findViewById(R.id.tvDetailName)).setText(currentGoal.name);
         tvProgress.setText("Собрано: " + currentGoal.currentAmount + " из " + currentGoal.targetAmount + " " + currentGoal.currency);
         
-        // Логика расчетов
         double remaining = currentGoal.targetAmount - currentGoal.currentAmount;
         String calcText = "";
 
         if (remaining <= 0) {
             calcText = "🎉 Цель достигнута!";
-        } else if (currentGoal.plannedPayment > 0) {
-            int paymentsNeeded = (int) Math.ceil(remaining / currentGoal.plannedPayment);
+        } else if (currentGoal.paymentAmount > 0) {
+            int paymentsNeeded = (int) Math.ceil(remaining / currentGoal.paymentAmount);
             calcText = "Осталось: " + remaining + " " + currentGoal.currency + "\n" +
-                       "При взносе по " + currentGoal.plannedPayment + " нужно сделать: " + paymentsNeeded + " платежей.";
+                       "При взносе по " + currentGoal.paymentAmount + " нужно сделать: " + paymentsNeeded + " взносов.";
         } else {
             calcText = "Осталось: " + remaining + " " + currentGoal.currency + "\n" +
-                       "Частота: " + currentGoal.paymentFrequency + "\n" +
+                       "Частота: " + currentGoal.frequency + "\n" +
                        "Укажите сумму взноса для расчета графика.";
         }
 
