@@ -1,74 +1,88 @@
 package com.example.kopi;
 
+import android.content.Intent;
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.ArrayAdapter;
+import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.EditText;
-import android.widget.Spinner;
 import android.widget.TextView;
-import android.widget.Toast;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
-
-    EditText etName, etAmount, etLink, etComment;
-    Spinner spinnerCurrency;
-    Button btnSave;
-    TextView tvResult;
+    private RecyclerView recyclerView;
+    private GoalAdapter adapter;
+    private AppDatabase db;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        etName = findViewById(R.id.etName);
-        etAmount = findViewById(R.id.etAmount);
-        etLink = findViewById(R.id.etLink);
-        etComment = findViewById(R.id.etComment);
-        spinnerCurrency = findViewById(R.id.spinnerCurrency);
-        btnSave = findViewById(R.id.btnSave);
-        tvResult = findViewById(R.id.tvResult);
+        // Запрос разрешения на уведомления (для Android 13+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 101);
+        }
 
-        String[] currencies = {"RUB", "USD", "EUR"};
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, currencies);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerCurrency.setAdapter(adapter);
+        db = AppDatabase.getInstance(this);
+        recyclerView = findViewById(R.id.recyclerView);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        
+        adapter = new GoalAdapter(db.goalDao().getAllGoals());
+        recyclerView.setAdapter(adapter);
 
-        btnSave.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                saveGoal();
-            }
+        findViewById(R.id.btnAddGoal).setOnClickListener(v -> {
+            startActivity(new Intent(MainActivity.this, AddGoalActivity.class));
         });
     }
 
-    private void saveGoal() {
-        String name = etName.getText().toString().trim();
-        String amountStr = etAmount.getText().toString().trim();
-        String link = etLink.getText().toString().trim();
-        String comment = etComment.getText().toString().trim();
-        String currency = spinnerCurrency.getSelectedItem().toString();
+    @Override
+    protected void onResume() {
+        super.onResume();
+        adapter.updateData(db.goalDao().getAllGoals());
+    }
 
-        if (name.isEmpty() || amountStr.isEmpty()) {
-            Toast.makeText(this, "Введите название и сумму", Toast.LENGTH_SHORT).show();
-            return;
+    private class GoalAdapter extends RecyclerView.Adapter<GoalAdapter.GoalViewHolder> {
+        private List<Goal> goals;
+        public GoalAdapter(List<Goal> goals) { this.goals = goals; }
+        public void updateData(List<Goal> newGoals) { this.goals = newGoals; notifyDataSetChanged(); }
+
+        @NonNull
+        @Override
+        public GoalViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_goal, parent, false);
+            return new GoalViewHolder(view);
         }
 
-        double amount;
-        try {
-            amount = Double.parseDouble(amountStr);
-        } catch (NumberFormatException e) {
-            Toast.makeText(this, "Сумма должна быть числом", Toast.LENGTH_SHORT).show();
-            return;
+        @Override
+        public void onBindViewHolder(@NonNull GoalViewHolder holder, int position) {
+            Goal goal = goals.get(position);
+            holder.tvGoalName.setText(goal.name);
+            holder.tvGoalAmount.setText(goal.currentAmount + " / " + goal.targetAmount + " " + goal.currency);
+            holder.tvGoalDate.setText("К дате: " + goal.targetDate);
+            
+            holder.itemView.setOnClickListener(v -> {
+                Intent intent = new Intent(MainActivity.this, GoalDetailActivity.class);
+                intent.putExtra("goal_id", goal.id);
+                startActivity(intent);
+            });
         }
 
-        String result = "Цель: " + name + "\n" +
-                "Сумма: " + amount + " " + currency + "\n" +
-                "Ссылка: " + (link.isEmpty() ? "нет" : link) + "\n" +
-                "Комментарий: " + (comment.isEmpty() ? "нет" : comment);
+        @Override
+        public int getItemCount() { return goals.size(); }
 
-        tvResult.setText(result);
-        Toast.makeText(this, "Сохранено!", Toast.LENGTH_SHORT).show();
+        class GoalViewHolder extends RecyclerView.ViewHolder {
+            TextView tvGoalName, tvGoalAmount, tvGoalDate;
+            public GoalViewHolder(@NonNull View itemView) {
+                super(itemView);
+                tvGoalName = itemView.findViewById(R.id.tvGoalName);
+                tvGoalAmount = itemView.findViewById(R.id.tvGoalAmount);
+                tvGoalDate = itemView.findViewById(R.id.tvGoalDate);
+            }
+        }
     }
 }
