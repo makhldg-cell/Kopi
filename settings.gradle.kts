@@ -14,4 +14,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "Kopi"
-include ':app'
+include(":app")
