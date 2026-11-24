@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+        
+        <EditText android:id="@+id/etName" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Название цели" />
+        <EditText android:id="@+id/etTargetAmount" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="К чему стремимся (Сумма)" android:inputType="numberDecimal" android:layout_marginTop="8dp"/>
+        
+        <Spinner android:id="@+id/spinnerCurrency" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"/>
+        
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="План пополнений:" android:textStyle="bold" android:layout_marginTop="16dp"/>
+        
+        <Spinner android:id="@+id/spinnerFrequency" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"/>
+        
+        <EditText android:id="@+id/etPlannedPayment" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Сумма одного взноса (опционально)" android:inputType="numberDecimal" android:layout_marginTop="8dp"/>
+        
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Дата цели (дд.мм.гггг):" android:layout_marginTop="16dp"/>
+        <EditText android:id="@+id/etTargetDate" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="01.12.2026" android:inputType="date" android:layout_marginTop="8dp"/>
+        
+        <EditText android:id="@+id/etLink" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Ссылка на товар (опционально)" android:layout_marginTop="8dp"/>
+        <EditText android:id="@+id/etComment" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Комментарий" android:layout_marginTop="8dp"/>
+        
+        <Button android:id="@+id/btnSave" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сохранить цель" android:layout_marginTop="24dp"/>
+    </LinearLayout>
+</ScrollView>
