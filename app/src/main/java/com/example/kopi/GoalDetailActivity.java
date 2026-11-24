@@ -1,5 +1,6 @@
 package com.example.kopi;
 
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -21,6 +22,7 @@ public class GoalDetailActivity extends AppCompatActivity {
     private TextView tvProgress, tvCalculation;
     private AppDatabase db;
     private PaymentAdapter adapter;
+    private int goalId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -28,18 +30,20 @@ public class GoalDetailActivity extends AppCompatActivity {
         setContentView(R.layout.activity_goal_detail);
 
         db = AppDatabase.getInstance(this);
-        int goalId = getIntent().getIntExtra("goal_id", -1);
-        currentGoal = db.goalDao().getGoalById(goalId);
+        goalId = getIntent().getIntExtra("goal_id", -1);
+        
+        // Кнопка редактирования
+        findViewById(R.id.btnEditGoal).setOnClickListener(v -> {
+            Intent intent = new Intent(this, AddGoalActivity.class);
+            intent.putExtra("edit_goal_id", goalId);
+            startActivity(intent);
+        });
 
         tvProgress = findViewById(R.id.tvDetailProgress);
         tvCalculation = findViewById(R.id.tvCalculation);
 
         RecyclerView recyclerView = findViewById(R.id.recyclerViewSchedule);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(goalId));
-        recyclerView.setAdapter(adapter);
-
-        updateUI();
 
         EditText etAddAmount = findViewById(R.id.etAddAmount);
         Button btnAddAmount = findViewById(R.id.btnAddAmount);
@@ -56,6 +60,19 @@ public class GoalDetailActivity extends AppCompatActivity {
                 Toast.makeText(this, "Введите сумму", Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        currentGoal = db.goalDao().getGoalById(goalId);
+        if (currentGoal == null) { finish(); return; }
+        
+        updateUI();
+        
+        RecyclerView recyclerView = findViewById(R.id.recyclerViewSchedule);
+        adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(goalId));
+        recyclerView.setAdapter(adapter);
     }
 
     private void updateUI() {
@@ -78,7 +95,6 @@ public class GoalDetailActivity extends AppCompatActivity {
 
     private class PaymentAdapter extends RecyclerView.Adapter<PaymentAdapter.PayViewHolder> {
         private List<Payment> payments;
-
         public PaymentAdapter(List<Payment> payments) { this.payments = payments; }
 
         @NonNull
@@ -103,15 +119,12 @@ public class GoalDetailActivity extends AppCompatActivity {
             } else if (p.status.equals("partial")) {
                 holder.itemView.setBackgroundColor(Color.parseColor("#FFE0B2"));
                 holder.tvPayStatus.setText("⚠️");
-                holder.tvPayAmount.setTypeface(null, android.graphics.Typeface.BOLD);
             } else {
                 holder.itemView.setBackgroundColor(Color.TRANSPARENT);
                 holder.tvPayStatus.setText("⏳");
             }
 
-            holder.itemView.setOnClickListener(v -> {
-                showEditPaymentDialog(p);
-            });
+            holder.itemView.setOnClickListener(v -> showEditPaymentDialog(p));
         }
 
         @Override
@@ -129,8 +142,7 @@ public class GoalDetailActivity extends AppCompatActivity {
     }
 
     private void showEditPaymentDialog(Payment p) {
-        String[] options = {"Отметить как Внесен (Полностью)", "Отметить как Пропущен", "Внести частично"};
-        
+        String[] options = {"Отметить как Внесен", "Отметить как Пропущен", "Внести частично"};
         new AlertDialog.Builder(this)
             .setTitle("Платеж на " + p.date)
             .setItems(options, (dialog, which) -> {
@@ -144,4 +156,4 @@ public class GoalDetailActivity extends AppCompatActivity {
             })
             .show();
     }
-        }
+}
