@@ -9,7 +9,7 @@ import java.util.List;
 @Dao
 public interface GoalDao {
     @Insert
-    void insert(Goal goal);
+    long insert(Goal goal);
 
     @Update
     void update(Goal goal);
@@ -19,4 +19,17 @@ public interface GoalDao {
 
     @Query("SELECT * FROM goals WHERE id = :id")
     Goal getGoalById(int id);
+
+    // Новые методы для удаления
+    @Query("DELETE FROM goals WHERE id = :goalId")
+    void deleteGoal(int goalId);
+
+    @Query("DELETE FROM payments WHERE goalId = :goalId")
+    void deletePaymentsForGoal(int goalId);
+
+    @Insert
+    void insertPayment(Payment payment);
+
+    @Query("SELECT * FROM payments WHERE goalId = :goalId ORDER BY date ASC")
+    List<Payment> getPaymentsForGoal(int goalId);
 }
