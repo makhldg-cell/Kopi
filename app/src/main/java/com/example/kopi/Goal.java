@@ -15,9 +15,14 @@ public class Goal {
     public String link;
     public String comment;
 
-    // Поля для расчетов и дат
-    public String paymentFrequency; // "weekly", "twice_month", "monthly", "custom"
-    public String startDate; // Формат "dd.MM.yyyy"
-    public String targetDate; // Формат "dd.MM.yyyy"
-    public double plannedPayment; // Сколько планируется вносить за раз
+    // Настройки графика
+    public String frequency; // "weekly", "twice_month", "monthly"
+    public int dayOfWeek;
+    public int dayOfMonth1;
+    public int dayOfMonth2;
+    public double paymentAmount;
+    public String endDate;
+
+    // Новое поле для заморозки
+    public boolean isFrozen = false;
 }
