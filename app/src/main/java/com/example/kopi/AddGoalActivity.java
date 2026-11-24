@@ -1,6 +1,8 @@
 package com.example.kopi;
 
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -12,8 +14,8 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class AddGoalActivity extends AppCompatActivity {
-    private Spinner spinnerFrequency, spinnerDayOfWeek, spinnerDayOfMonth1, spinnerDayOfMonth2;
-    private EditText etTargetAmount, etPaymentAmount;
+    private Spinner spinnerFrequency;
+    private EditText etDayOfWeek, etDayOfMonth1, etDayOfMonth2, etTargetAmount, etPaymentAmount;
     private TextView tvCalculatedDate;
 
     @Override
@@ -25,65 +27,53 @@ public class AddGoalActivity extends AppCompatActivity {
         etTargetAmount = findViewById(R.id.etTargetAmount);
         etPaymentAmount = findViewById(R.id.etPaymentAmount);
         spinnerFrequency = findViewById(R.id.spinnerFrequency);
-        spinnerDayOfWeek = findViewById(R.id.spinnerDayOfWeek);
-        spinnerDayOfMonth1 = findViewById(R.id.spinnerDayOfMonth1);
-        spinnerDayOfMonth2 = findViewById(R.id.spinnerDayOfMonth2);
+        etDayOfWeek = findViewById(R.id.etDayOfWeek);
+        etDayOfMonth1 = findViewById(R.id.etDayOfMonth1);
+        etDayOfMonth2 = findViewById(R.id.etDayOfMonth2);
         EditText etLink = findViewById(R.id.etLink);
         EditText etComment = findViewById(R.id.etComment);
         Spinner spinnerCurrency = findViewById(R.id.spinnerCurrency);
         Button btnSave = findViewById(R.id.btnSave);
         tvCalculatedDate = findViewById(R.id.tvCalculatedDate);
 
-        // Настройка валют
         String[] currencies = {"RUB", "USD", "EUR"};
         ArrayAdapter<String> adapterCur = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, currencies);
         adapterCur.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCurrency.setAdapter(adapterCur);
 
-        // Настройка частоты
         String[] frequencies = {"Раз в неделю", "Два раза в месяц", "Раз в месяц"};
         ArrayAdapter<String> adapterFreq = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, frequencies);
         adapterFreq.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerFrequency.setAdapter(adapterFreq);
 
-        // Настройка дней недели
-        String[] daysOfWeek = {"Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"};
-        ArrayAdapter<String> adapterDayWeek = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, daysOfWeek);
-        spinnerDayOfWeek.setAdapter(adapterDayWeek);
-
-        // Настройка чисел месяца
-        String[] daysOfMonth = new String[31];
-        for (int i = 0; i < 31; i++) daysOfMonth[i] = String.valueOf(i + 1);
-        ArrayAdapter<String> adapterDayMonth = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, daysOfMonth);
-        spinnerDayOfMonth1.setAdapter(adapterDayMonth);
-        spinnerDayOfMonth2.setAdapter(adapterDayMonth);
-
-        // Умный показ полей в зависимости от выбора
         spinnerFrequency.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                spinnerDayOfWeek.setVisibility(View.GONE);
-                spinnerDayOfMonth1.setVisibility(View.GONE);
-                spinnerDayOfMonth2.setVisibility(View.GONE);
+                etDayOfWeek.setVisibility(View.GONE);
+                etDayOfMonth1.setVisibility(View.GONE);
+                etDayOfMonth2.setVisibility(View.GONE);
 
-                if (position == 0) { // Раз в неделю
-                    spinnerDayOfWeek.setVisibility(View.VISIBLE);
-                } else if (position == 1) { // Два раза в месяц
-                    spinnerDayOfMonth1.setVisibility(View.VISIBLE);
-                    spinnerDayOfMonth2.setVisibility(View.VISIBLE);
-                } else if (position == 2) { // Раз в месяц
-                    spinnerDayOfMonth1.setVisibility(View.VISIBLE);
-                }
+                if (position == 0) etDayOfWeek.setVisibility(View.VISIBLE);
+                else if (position == 1) { etDayOfMonth1.setVisibility(View.VISIBLE); etDayOfMonth2.setVisibility(View.VISIBLE); }
+                else if (position == 2) etDayOfMonth1.setVisibility(View.VISIBLE);
+                
                 updateCalculatedDate();
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
         });
 
-        // Обновляем дату окончания при вводе суммы
-        etPaymentAmount.setOnFocusChangeListener((v, hasFocus) -> {
-            if (!hasFocus) updateCalculatedDate();
-        });
+        // Слушатель для мгновенного расчета
+        TextWatcher watcher = new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) { updateCalculatedDate(); }
+            @Override
+            public void afterTextChanged(Editable s) {}
+        };
+        etPaymentAmount.addTextChangedListener(watcher);
+        etTargetAmount.addTextChangedListener(watcher);
 
         btnSave.setOnClickListener(v -> {
             try {
@@ -98,15 +88,14 @@ public class AddGoalActivity extends AppCompatActivity {
                 goal.paymentAmount = Double.parseDouble(etPaymentAmount.getText().toString());
 
                 if (goal.frequency.equals("Раз в неделю")) {
-                    goal.dayOfWeek = spinnerDayOfWeek.getSelectedItemPosition() + 1;
+                    goal.dayOfWeek = Integer.parseInt(etDayOfWeek.getText().toString());
                 } else if (goal.frequency.equals("Раз в месяц")) {
-                    goal.dayOfMonth1 = spinnerDayOfMonth1.getSelectedItemPosition() + 1;
+                    goal.dayOfMonth1 = Integer.parseInt(etDayOfMonth1.getText().toString());
                 } else if (goal.frequency.equals("Два раза в месяц")) {
-                    goal.dayOfMonth1 = spinnerDayOfMonth1.getSelectedItemPosition() + 1;
-                    goal.dayOfMonth2 = spinnerDayOfMonth2.getSelectedItemPosition() + 1;
+                    goal.dayOfMonth1 = Integer.parseInt(etDayOfMonth1.getText().toString());
+                    goal.dayOfMonth2 = Integer.parseInt(etDayOfMonth2.getText().toString());
                 }
 
-                // Рассчитываем конечную дату автоматически
                 goal.endDate = DateUtils.calculateEndDate(goal.targetAmount, goal.currentAmount, goal.paymentAmount, goal.frequency, goal.dayOfMonth1, goal.dayOfMonth2);
 
                 long id = AppDatabase.getInstance(this).goalDao().insert(goal);
@@ -126,7 +115,7 @@ public class AddGoalActivity extends AppCompatActivity {
             double payment = Double.parseDouble(etPaymentAmount.getText().toString());
             String freq = spinnerFrequency.getSelectedItem().toString();
             String endDate = DateUtils.calculateEndDate(target, 0, payment, freq, 0, 0);
-            tvCalculatedDate.setText("Примерная дата завершения: " + endDate);
+            tvCalculatedDate.setText("Прогноз завершения: " + endDate);
         } catch (Exception ignored) {}
     }
 }
