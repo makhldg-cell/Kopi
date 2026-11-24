@@ -20,7 +20,6 @@ public interface GoalDao {
     @Query("SELECT * FROM goals WHERE id = :id")
     Goal getGoalById(int id);
 
-    // Новые методы для удаления
     @Query("DELETE FROM goals WHERE id = :goalId")
     void deleteGoal(int goalId);
 
