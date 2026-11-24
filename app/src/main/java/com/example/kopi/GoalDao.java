@@ -29,6 +29,6 @@ public interface GoalDao {
     @Insert
     void insertPayment(Payment payment);
 
-    @Query("SELECT * FROM payments WHERE goalId = :goalId ORDER BY date ASC")
+    @Query("SELECT * FROM payments WHERE goalId = :goalId ORDER BY id ASC")
     List<Payment> getPaymentsForGoal(int goalId);
 }
