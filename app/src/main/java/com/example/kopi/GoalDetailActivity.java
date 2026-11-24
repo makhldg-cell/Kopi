@@ -1,16 +1,26 @@
 package com.example.kopi;
 
+import android.graphics.Color;
 import android.os.Bundle;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import java.util.List;
 
 public class GoalDetailActivity extends AppCompatActivity {
     private Goal currentGoal;
     private TextView tvProgress, tvCalculation;
     private AppDatabase db;
+    private PaymentAdapter adapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -23,7 +33,13 @@ public class GoalDetailActivity extends AppCompatActivity {
 
         tvProgress = findViewById(R.id.tvDetailProgress);
         tvCalculation = findViewById(R.id.tvCalculation);
-        
+
+        // Настройка списка графика
+        RecyclerView recyclerView = findViewById(R.id.recyclerViewSchedule);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(goalId));
+        recyclerView.setAdapter(adapter);
+
         updateUI();
 
         EditText etAddAmount = findViewById(R.id.etAddAmount);
@@ -49,21 +65,89 @@ public class GoalDetailActivity extends AppCompatActivity {
         
         double remaining = currentGoal.targetAmount - currentGoal.currentAmount;
         String calcText = "";
-
         if (remaining <= 0) {
             calcText = "🎉 Цель достигнута!";
         } else if (currentGoal.paymentAmount > 0) {
             int paymentsNeeded = (int) Math.ceil(remaining / currentGoal.paymentAmount);
             calcText = "Осталось: " + remaining + " " + currentGoal.currency + "\n" +
                        "При взносе по " + currentGoal.paymentAmount + " нужно сделать: " + paymentsNeeded + " взносов.";
-        } else {
-            calcText = "Осталось: " + remaining + " " + currentGoal.currency + "\n" +
-                       "Частота: " + currentGoal.frequency + "\n" +
-                       "Укажите сумму взноса для расчета графика.";
         }
-
         tvCalculation.setText(calcText);
         ((TextView)findViewById(R.id.tvDetailLink)).setText("Ссылка: " + (currentGoal.link.isEmpty() ? "нет" : currentGoal.link));
         ((TextView)findViewById(R.id.tvDetailComment)).setText("Комментарий: " + (currentGoal.comment.isEmpty() ? "нет" : currentGoal.comment));
     }
-}
+
+    // Адаптер для графика платежей
+    private class PaymentAdapter extends RecyclerView.Adapter<PaymentAdapter.PayViewHolder> {
+        private List<Payment> payments;
+
+        public PaymentAdapter(List<Payment> payments) { this.payments = payments; }
+
+        @NonNull
+        @Override
+        public PayViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_payment, parent, false);
+            return new PayViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull PayViewHolder holder, int position) {
+            Payment p = payments.get(position);
+            holder.tvPayDate.setText(p.date);
+            holder.tvPayAmount.setText(p.amount + " " + currentGoal.currency);
+
+            // Логика цветов (Зеленый/Красный/Оранжевый)
+            if (p.status.equals("paid")) {
+                holder.itemView.setBackgroundColor(Color.parseColor("#C8E6C9")); // Зеленый
+                holder.tvPayStatus.setText("✅");
+            } else if (p.status.equals("missed")) {
+                holder.itemView.setBackgroundColor(Color.parseColor("#FFCDD2")); // Красный
+                holder.tvPayStatus.setText("❌");
+            } else if (p.status.equals("partial")) {
+                holder.itemView.setBackgroundColor(Color.parseColor("#FFE0B2")); // Оранжевый
+                holder.tvPayStatus.setText("⚠️");
+                holder.tvPayAmount.setTypeface(null, android.graphics.Typeface.BOLD); // Жирный
+            } else {
+                holder.itemView.setBackgroundColor(Color.TRANSPARENT);
+                holder.tvPayStatus.setText("⏳");
+            }
+
+            // Нажатие на платеж (корректировка)
+            holder.itemView.setOnClickListener(v -> {
+                showEditPaymentDialog(p);
+            });
+        }
+
+        @Override
+        public int getItemCount() { return payments.size(); }
+
+        class PayViewHolder extends RecyclerView.ViewHolder {
+            TextView tvPayDate, tvPayAmount, tvPayStatus;
+            public PayViewHolder(@NonNull View itemView) {
+                super(itemView);
+                tvPayDate = itemView.findViewById(R.id.tvPayDate);
+                tvPayAmount = itemView.findViewById(R.id.tvPayAmount);
+                tvPayStatus = itemView.findViewById(R.id.tvPayStatus);
+            }
+        }
+    }
+
+    // Диалог для изменения статуса платежа
+    private void showEditPaymentDialog(Payment p) {
+        String[] options = {"Отметить как Внесен (Полностью)", "Отметить как Пропущен", "Внести частично"};
+        
+        new AlertDialog.Builder(this)
+            .setTitle("Платеж на " + p.date)
+            .setItems(options, (dialog, which) -> {
+                if (which == 0) p.status = "paid";
+                else if (which == 1) p.status = "missed";
+                else if (which == 2) p.status = "partial"; // Для простоты, без ввода суммы
+                
+                AppDatabase.getInstance(this).goalDao().insertPayment(p); // Обновляем запись
+                // Перезагружаем список
+                adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(currentGoal.id));
+                ((RecyclerView)findViewById(R.id.recyclerViewSchedule)).setAdapter(adapter);
+            })
+            .show();
+    }
+                    }
