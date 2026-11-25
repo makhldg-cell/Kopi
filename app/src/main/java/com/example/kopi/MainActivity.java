@@ -1,7 +1,6 @@
 package com.example.kopi;
 
 import android.content.Intent;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -13,7 +12,11 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
     private RecyclerView recyclerView;
@@ -25,10 +28,19 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Разрешение на уведомления
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 101);
         }
+
+        // НАСТРОЙКА УВЕДОМЛЕНИЙ (раз в 15 минут для теста, потом поменяем на 1 раз в день)
+        PeriodicWorkRequest workRequest = new PeriodicWorkRequest.Builder(
+                NotificationWorker.class, 15, TimeUnit.MINUTES)
+                .build();
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                "KopilkaNotifications",
+                ExistingPeriodicWorkPolicy.UPDATE,
+                workRequest
+        );
 
         db = AppDatabase.getInstance(this);
         recyclerView = findViewById(R.id.recyclerView);
@@ -64,27 +76,24 @@ public class MainActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull GoalViewHolder holder, int position) {
             Goal goal = goals.get(position);
             
-            // Если заморожена, добавляем пометку
             String nameText = goal.name;
             if (goal.isFrozen) {
                 nameText = "❄️ " + nameText;
-                holder.itemView.setAlpha(0.6f); // Делаем полупрозрачным
+                holder.itemView.setAlpha(0.6f);
             } else {
                 holder.itemView.setAlpha(1.0f);
             }
             
             holder.tvGoalName.setText(nameText);
-            holder.tvGoalAmount.setText(goal.currentAmount + " / " + goal.targetAmount + " " + goal.currency);
+            holder.tvGoalAmount.setText(DateUtils.formatMoney(goal.currentAmount) + " / " + DateUtils.formatMoney(goal.targetAmount) + " " + goal.currency);
             holder.tvGoalDate.setText("К дате: " + goal.endDate);
             
-            // Обычное нажатие - переход к деталям
             holder.itemView.setOnClickListener(v -> {
                 Intent intent = new Intent(MainActivity.this, GoalDetailActivity.class);
                 intent.putExtra("goal_id", goal.id);
                 startActivity(intent);
             });
 
-            // Долгое нажатие - меню (Заморозить/Удалить)
             holder.itemView.setOnLongClickListener(v -> {
                 showGoalOptions(goal);
                 return true;
@@ -105,7 +114,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // Меню для заморозки и удаления
     private void showGoalOptions(Goal goal) {
         String freezeText = goal.isFrozen ? "Разморозить цель" : "Заморозить цель";
         
@@ -113,12 +121,10 @@ public class MainActivity extends AppCompatActivity {
             .setTitle(goal.name)
             .setItems(new String[]{freezeText, "Удалить цель"}, (dialog, which) -> {
                 if (which == 0) {
-                    // Заморозка/Разморозка
                     goal.isFrozen = !goal.isFrozen;
                     db.goalDao().update(goal);
                     adapter.updateData(db.goalDao().getAllGoals());
                 } else if (which == 1) {
-                    // Удаление
                     new AlertDialog.Builder(this)
                         .setTitle("Удалить цель?")
                         .setMessage("Это действие нельзя отменить. Вся история платежей будет удалена.")
