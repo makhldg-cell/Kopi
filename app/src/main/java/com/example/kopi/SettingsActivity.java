@@ -22,7 +22,6 @@ public class SettingsActivity extends AppCompatActivity {
         timePicker = findViewById(R.id.timePicker);
         Button btnSave = findViewById(R.id.btnSaveSettings);
 
-        // Включаем строгий 24-часовой формат (убираем AM/PM)
         timePicker.setIs24HourView(true);
 
         prefs = getSharedPreferences("settings", MODE_PRIVATE);
@@ -43,6 +42,9 @@ public class SettingsActivity extends AppCompatActivity {
             editor.putInt("notif_hour", selectedHour);
             editor.putInt("notif_minute", selectedMinute);
             editor.apply();
+
+            // Ставим будильник на новое время
+            NotificationUtils.scheduleAlarm(this);
 
             Toast.makeText(this, "Настройки сохранены", Toast.LENGTH_SHORT).show();
             finish();
