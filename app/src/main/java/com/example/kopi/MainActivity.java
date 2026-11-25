@@ -6,15 +6,16 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.OneTimeWorkRequest;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
-import java.util.Calendar;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -44,13 +45,32 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.btnAddGoal).setOnClickListener(v -> {
             startActivity(new Intent(MainActivity.this, AddGoalActivity.class));
         });
+
+        // Обработчик нажатия на шестеренку
+        findViewById(R.id.btnSettings).setOnClickListener(v -> showSettingsDialog());
+    }
+
+    private void showSettingsDialog() {
+        String[] options = {"🔔 Проверить уведомления сейчас", "🕒 Время уведомлений (в разработке)"};
+        
+        new AlertDialog.Builder(this)
+            .setTitle("Настройки")
+            .setItems(options, (dialog, which) -> {
+                if (which == 0) {
+                    // Ручной тест уведомлений
+                    OneTimeWorkRequest testRequest = new OneTimeWorkRequest.Builder(NotificationWorker.class).build();
+                    WorkManager.getInstance(this).enqueue(testRequest);
+                    Toast.makeText(this, "Проверка запущена! Смотри шторку.", Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this, "Скоро добавим выбор времени", Toast.LENGTH_SHORT).show();
+                }
+            })
+            .show();
     }
 
     private void setupNotifications() {
-        // ВНИМАНИЕ! Сейчас стоит 15 минут для теста.
-        // Потом поменяем на: new PeriodicWorkRequest.Builder(NotificationWorker.class, 1, TimeUnit.DAYS)
         PeriodicWorkRequest workRequest = new PeriodicWorkRequest.Builder(
-                NotificationWorker.class, 15, TimeUnit.MINUTES) // <-- ТЕСТОВЫЙ РЕЖИМ
+                NotificationWorker.class, 15, TimeUnit.MINUTES)
                 .build();
 
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
