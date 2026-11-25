@@ -29,6 +29,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Разрешение на уведомления
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 101);
         }
@@ -46,29 +47,31 @@ public class MainActivity extends AppCompatActivity {
             startActivity(new Intent(MainActivity.this, AddGoalActivity.class));
         });
 
-        // Обработчик нажатия на шестеренку
+        // ОБРАБОТЧИК ШЕСТЕРЕНКИ (тот, который ты тестировал)
         findViewById(R.id.btnSettings).setOnClickListener(v -> showSettingsDialog());
     }
 
     private void showSettingsDialog() {
-        String[] options = {"🔔 Проверить уведомления сейчас", "🕒 Время уведомлений (в разработке)"};
+        String[] options = {"🔔 Проверить уведомления сейчас", "🕒 Время уведомлений"};
         
         new AlertDialog.Builder(this)
             .setTitle("Настройки")
             .setItems(options, (dialog, which) -> {
                 if (which == 0) {
-                    // Ручной тест уведомлений
+                    // Проверка уведомлений "здесь и сейчас"
                     OneTimeWorkRequest testRequest = new OneTimeWorkRequest.Builder(NotificationWorker.class).build();
                     WorkManager.getInstance(this).enqueue(testRequest);
                     Toast.makeText(this, "Проверка запущена! Смотри шторку.", Toast.LENGTH_LONG).show();
-                } else {
-                    Toast.makeText(this, "Скоро добавим выбор времени", Toast.LENGTH_SHORT).show();
+                } else if (which == 1) {
+                    // Тут будет настройка времени (пока просто заглушка, как ты и просил)
+                    Toast.makeText(this, "Настройка времени: 05:00 (по умолчанию)", Toast.LENGTH_SHORT).show();
                 }
             })
             .show();
     }
 
     private void setupNotifications() {
+        // Проверка каждые 15 минут для теста
         PeriodicWorkRequest workRequest = new PeriodicWorkRequest.Builder(
                 NotificationWorker.class, 15, TimeUnit.MINUTES)
                 .build();
