@@ -57,9 +57,7 @@ public class GoalDetailActivity extends AppCompatActivity {
         btnAddAmount.setOnClickListener(v -> {
             try {
                 double addSum = Double.parseDouble(etAddAmount.getText().toString());
-                if (addSum > 0) {
-                    addAmountToGoal(addSum);
-                }
+                if (addSum > 0) addAmountToGoal(addSum);
             } catch (Exception e) {
                 Toast.makeText(this, "Введите сумму", Toast.LENGTH_SHORT).show();
             }
@@ -75,12 +73,6 @@ public class GoalDetailActivity extends AppCompatActivity {
     private void loadGoalAndPayments() {
         executor.execute(() -> {
             currentGoal = db.goalDao().getGoalById(goalId);
-            
-            // ВОТ ЗДЕСЬ МЫ ПЕРЕСЧИТЫВАЕМ ГРАФИК ПРИ ЗАГРУЗКЕ!
-            if (currentGoal != null) {
-                DateUtils.updateScheduleBasedOnProgress(currentGoal, db);
-            }
-            
             List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
 
             mainHandler.post(() -> {
@@ -97,8 +89,8 @@ public class GoalDetailActivity extends AppCompatActivity {
             currentGoal.currentAmount += amount;
             db.goalDao().update(currentGoal);
             
-            // ПЕРЕСЧИТЫВАЕМ ГРАФИК ПОСЛЕ ВНЕСЕНИЯ
-            DateUtils.updateScheduleBasedOnProgress(currentGoal, db);
+            // ВОТ ГЛАВНОЕ: пересчитываем график с нуля!
+            DateUtils.recalculateSchedule(currentGoal, db);
             
             List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
             
@@ -182,21 +174,24 @@ public class GoalDetailActivity extends AppCompatActivity {
     }
 
     private void showEditPaymentDialog(Payment p) {
-        String[] options = {"Отметить как Внесен", "Отметить как Пропущен"};
+        String[] options = {"Внести этот платеж (Учесть сумму)", "Отметить как Пропущен"};
         
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Платеж на " + p.date);
         builder.setItems(options, (dialog, which) -> {
             dialog.dismiss(); 
-            if (which == 0) p.status = "paid";
-            else if (which == 1) p.status = "missed";
-            
-            savePaymentInBackground(p);
+            if (which == 0) {
+                // Если нажали "Внести" — добавляем эту сумму к балансу!
+                addAmountToGoal(p.amount);
+            } else if (which == 1) {
+                p.status = "missed";
+                savePaymentStatusInBackground(p);
+            }
         });
         builder.show();
     }
 
-    private void savePaymentInBackground(Payment p) {
+    private void savePaymentStatusInBackground(Payment p) {
         executor.execute(() -> {
             AppDatabase.getInstance(this).goalDao().updatePayment(p);
             List<Payment> updatedPayments = db.goalDao().getPaymentsForGoal(goalId);
@@ -204,7 +199,7 @@ public class GoalDetailActivity extends AppCompatActivity {
             mainHandler.post(() -> {
                 adapter = new PaymentAdapter(updatedPayments);
                 recyclerView.setAdapter(adapter);
-                Toast.makeText(this, "Статус обновлен", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Платеж пропущен", Toast.LENGTH_SHORT).show();
             });
         });
     }
