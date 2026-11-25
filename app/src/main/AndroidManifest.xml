@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <!-- Разрешение на уведомления для Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
@@ -12,9 +10,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MaterialComponents.DayNight.DarkActionBar">
         
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
+        <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -23,6 +19,9 @@
 
         <activity android:name=".AddGoalActivity" />
         <activity android:name=".GoalDetailActivity" />
+
+        <!-- РЕГИСТРАЦИЯ ОБРАБОТЧИКА КНОПКИ -->
+        <receiver android:name=".NotificationActionReceiver" android:exported="false" />
 
     </application>
 </manifest>
