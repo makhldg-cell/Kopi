@@ -32,8 +32,9 @@ public interface GoalDao {
     @Update
     void updatePayment(Payment payment);
 
+    // Тут была ошибка. Теперь переменная называется paymentId, как и в запросе.
     @Query("DELETE FROM payments WHERE id = :paymentId")
-    void deletePayment(Payment payment);
+    void deletePayment(int paymentId);
 
     @Query("SELECT * FROM payments WHERE goalId = :goalId ORDER BY id ASC")
     List<Payment> getPaymentsForGoal(int goalId);
