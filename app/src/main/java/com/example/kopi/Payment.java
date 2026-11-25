@@ -9,7 +9,7 @@ public class Payment {
     public int id;
     public int goalId;
     public String date;
-    public double amount; // Планируемая сумма взноса
-    public double paidAmount = 0; // НОВОЕ ПОЛЕ: сколько уже внесено
+    public double amount;
+    public double remainingAmount; // Сколько осталось внести (для частичных)
     public String status; // "pending", "paid", "missed", "partial"
 }
