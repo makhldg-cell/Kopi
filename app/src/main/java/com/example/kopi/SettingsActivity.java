@@ -22,7 +22,9 @@ public class SettingsActivity extends AppCompatActivity {
         timePicker = findViewById(R.id.timePicker);
         Button btnSave = findViewById(R.id.btnSaveSettings);
 
-        // Загружаем сохраненные настройки
+        // Включаем строгий 24-часовой формат (убираем AM/PM)
+        timePicker.setIs24HourView(true);
+
         prefs = getSharedPreferences("settings", MODE_PRIVATE);
         boolean isEnabled = prefs.getBoolean("notif_enabled", true);
         int hour = prefs.getInt("notif_hour", 9);
