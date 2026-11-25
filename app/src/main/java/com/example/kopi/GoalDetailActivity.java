@@ -1,6 +1,5 @@
 package com.example.kopi;
 
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -59,8 +58,13 @@ public class GoalDetailActivity extends AppCompatActivity {
             try {
                 double addSum = Double.parseDouble(etAddAmount.getText().toString());
                 if (addSum > 0) {
-                    // ВЫЗЫВАЕМ ДИАЛОГ ВЫБОРА
-                    showAddAmountDialog(addSum);
+                    // Проверяем, больше ли сумма, чем плановый взнос
+                    if (addSum >= currentGoal.paymentAmount) {
+                        showDistributionDialog(addSum);
+                    } else {
+                        // Если меньше — просто прибавляем в копилку
+                        applyAmount(addSum, false);
+                    }
                 }
             } catch (Exception e) {
                 Toast.makeText(this, "Введите сумму", Toast.LENGTH_SHORT).show();
@@ -68,40 +72,48 @@ public class GoalDetailActivity extends AppCompatActivity {
         });
     }
 
-    // Диалог выбора как учесть сумму
-    private void showAddAmountDialog(double amount) {
-        String[] options = {
-            "Учесть в ближайшем платеже (сократить график)",
-            "Пересчитать график (внести еще)"
-        };
+    private void showDistributionDialog(double amount) {
+        // Ищем ближайший неоплаченный платеж и считаем дни до него
+        long daysUntilNext = DateUtils.daysUntilNextPayment(goalId, db);
+
+        String[] options;
+        if (daysUntilNext > 2) {
+            // Если до платежа больше 2 дней
+            options = new String[]{
+                "Учесть в ближайшем платеже",
+                "Добавить в копилку и пересчитать график"
+            };
+        } else {
+            // Если платеж уже близко
+            options = new String[]{
+                "Учесть в текущем платеже (остаток перенести на следующий)",
+                "Добавить в копилку и пересчитать график"
+            };
+        }
 
         new AlertDialog.Builder(this)
-            .setTitle("Вы внесли " + DateUtils.formatMoney(amount) + " " + currentGoal.currency + ". Как учесть?")
+            .setTitle("Куда учесть " + DateUtils.formatMoney(amount) + " " + currentGoal.currency + "?")
             .setItems(options, (dialog, which) -> {
                 if (which == 0) {
-                    // Логика: учесть в ближайших платежах и сократить график
-                    addAmountToGoal(amount, true);
+                    // Учесть в платежах (с переносом остатка)
+                    applyAmount(amount, true);
                 } else {
-                    // Логика: пересчитать график полностью (добавить к балансу)
-                    addAmountToGoal(amount, false);
+                    // Пересчитать график (добавить в общий котел)
+                    applyAmount(amount, false);
                 }
             })
             .setNegativeButton("Отмена", null)
             .show();
     }
 
-    // amount - сумма, isShorten - сокращаем ли график
-    private void addAmountToGoal(double amount, boolean isShorten) {
+    private void applyAmount(double amount, boolean applyToPayments) {
         executor.execute(() -> {
-            currentGoal.currentAmount += amount;
-            db.goalDao().update(currentGoal);
-            
-            if (isShorten) {
-                // Сокращаем график (удаляем первые платежи на эту сумму)
-                DateUtils.shortenSchedule(currentGoal, db, amount);
+            if (applyToPayments) {
+                DateUtils.applyToNearestPayments(currentGoal, db, amount);
             } else {
-                // Просто пересчитываем график (как раньше)
-                DateUtils.recalculateSchedule(currentGoal, db);
+                currentGoal.currentAmount += amount;
+                db.goalDao().update(currentGoal);
+                DateUtils.recalculateFutureSchedule(currentGoal, db);
             }
             
             List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
@@ -169,7 +181,14 @@ public class GoalDetailActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull PayViewHolder holder, int position) {
             Payment p = payments.get(position);
             holder.tvPayDate.setText(p.date);
-            holder.tvPayAmount.setText(DateUtils.formatMoney(p.amount) + " " + currentGoal.currency);
+            
+            // Логика отображения частичного взноса
+            if (p.status.equals("partial")) {
+                holder.tvPayAmount.setText("Внесено: " + DateUtils.formatMoney(p.amount - p.remainingAmount) + 
+                                           "\nОсталось: " + DateUtils.formatMoney(p.remainingAmount));
+            } else {
+                holder.tvPayAmount.setText(DateUtils.formatMoney(p.amount) + " " + currentGoal.currency);
+            }
 
             holder.itemView.setBackgroundColor(Color.TRANSPARENT);
             holder.tvPayAmount.setTypeface(null, android.graphics.Typeface.NORMAL);
@@ -206,15 +225,15 @@ public class GoalDetailActivity extends AppCompatActivity {
     }
 
     private void showEditPaymentDialog(Payment p) {
-        String[] options = {"Внести этот платеж (Учесть сумму)", "Отметить как Пропущен"};
+        String[] options = {"Внести остаток по этому платежу", "Отметить как Пропущен"};
         
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Платеж на " + p.date);
         builder.setItems(options, (dialog, which) -> {
             dialog.dismiss(); 
             if (which == 0) {
-                // Внести эту сумму
-                addAmountToGoal(p.amount, true); // Сокращаем график
+                double amountToPay = p.status.equals("partial") ? p.remainingAmount : p.amount;
+                applyAmount(amountToPay, true);
             } else if (which == 1) {
                 p.status = "missed";
                 savePaymentStatusInBackground(p);
