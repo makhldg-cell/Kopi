@@ -124,17 +124,16 @@ public class GoalDetailActivity extends AppCompatActivity {
         ((TextView)findViewById(R.id.tvDetailLink)).setText("Ссылка: " + (currentGoal.link.isEmpty() ? "нет" : currentGoal.link));
         ((TextView)findViewById(R.id.tvDetailComment)).setText("Комментарий: " + (currentGoal.comment.isEmpty() ? "нет" : currentGoal.comment));
 
-        // ЛОГИКА БЛОКИРОВКИ
         if (currentGoal.isFrozen) {
             etAddAmount.setEnabled(false);
             btnAddAmount.setEnabled(false);
             btnAddAmount.setText("ЦЕЛЬ ЗАМОРОЖЕНА ❄️");
-            btnAddAmount.setBackgroundColor(Color.parseColor("#9E9E9E")); // Серый цвет
+            btnAddAmount.setBackgroundColor(Color.parseColor("#9E9E9E"));
         } else {
             etAddAmount.setEnabled(true);
             btnAddAmount.setEnabled(true);
             btnAddAmount.setText("ВНЕСТИ СУММУ");
-            btnAddAmount.setBackgroundColor(Color.parseColor("#9C27B0")); // Фиолетовый (стандартный)
+            btnAddAmount.setBackgroundColor(Color.parseColor("#9C27B0"));
         }
     }
 
@@ -153,7 +152,6 @@ public class GoalDetailActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull PayViewHolder holder, int position) {
             Payment p = payments.get(position);
             holder.tvPayDate.setText(p.date);
-            holder.tvPayAmount.setText(DateUtils.formatMoney(p.amount) + " " + currentGoal.currency);
 
             holder.itemView.setBackgroundColor(Color.TRANSPARENT);
             holder.tvPayAmount.setTypeface(null, android.graphics.Typeface.NORMAL);
@@ -161,15 +159,20 @@ public class GoalDetailActivity extends AppCompatActivity {
             if (p.status.equals("paid")) {
                 holder.itemView.setBackgroundColor(Color.parseColor("#C8E6C9"));
                 holder.tvPayStatus.setText("✅");
+                holder.tvPayAmount.setText(DateUtils.formatMoney(p.amount) + " " + currentGoal.currency);
             } else if (p.status.equals("missed")) {
                 holder.itemView.setBackgroundColor(Color.parseColor("#FFCDD2"));
                 holder.tvPayStatus.setText("❌");
+                holder.tvPayAmount.setText(DateUtils.formatMoney(p.amount) + " " + currentGoal.currency);
             } else if (p.status.equals("partial")) {
                 holder.itemView.setBackgroundColor(Color.parseColor("#FFE0B2"));
                 holder.tvPayAmount.setTypeface(null, android.graphics.Typeface.BOLD);
                 holder.tvPayStatus.setText("⚠️");
+                double rem = p.amount - p.paidAmount;
+                holder.tvPayAmount.setText("Внесено: " + DateUtils.formatMoney(p.paidAmount) + " из " + DateUtils.formatMoney(p.amount) + "\nОсталось: " + DateUtils.formatMoney(rem) + " " + currentGoal.currency);
             } else {
                 holder.tvPayStatus.setText("⏳");
+                holder.tvPayAmount.setText(DateUtils.formatMoney(p.amount) + " " + currentGoal.currency);
             }
 
             holder.itemView.setOnClickListener(v -> {
@@ -196,14 +199,25 @@ public class GoalDetailActivity extends AppCompatActivity {
     }
 
     private void showEditPaymentDialog(Payment p) {
-        String[] options = {"Внести этот платеж (Учесть сумму)", "Отметить как Пропущен"};
+        double remainder = p.amount - p.paidAmount;
+        
+        // Если платеж уже внесен, нет смысла предлагать его внести
+        if (p.status.equals("paid")) {
+            Toast.makeText(this, "Этот платеж уже полностью внесен", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String[] options = {
+                "Внести остаток: " + DateUtils.formatMoney(remainder) + " " + currentGoal.currency,
+                "Отметить как Пропущен"
+        };
         
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Платеж на " + p.date);
         builder.setItems(options, (dialog, which) -> {
             dialog.dismiss(); 
             if (which == 0) {
-                addAmountToGoal(p.amount);
+                addAmountToGoal(remainder); // Вносим ровно столько, сколько не хватает
             } else if (which == 1) {
                 p.status = "missed";
                 savePaymentStatusInBackground(p);
