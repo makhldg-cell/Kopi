@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Разрешение на уведомления для Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    
-    <!-- Разрешения для точных будильников -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <application
         android:allowBackup="true"
+        android:icon="@drawable/ic_rocket"
+        android:roundIcon="@drawable/ic_rocket"
         android:label="Копилка"
         android:supportsRtl="true"
         android:theme="@style/Theme.MaterialComponents.DayNight.DarkActionBar">
@@ -24,10 +23,6 @@
 
         <activity android:name=".AddGoalActivity" />
         <activity android:name=".GoalDetailActivity" />
-        <activity android:name=".SettingsActivity" />
-
-        <!-- Регистрируем приемник будильника -->
-        <receiver android:name=".AlarmReceiver" />
 
     </application>
 </manifest>
