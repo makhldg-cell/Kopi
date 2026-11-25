@@ -27,19 +27,16 @@ public class NotificationWorker extends Worker {
     public Result doWork() {
         Context context = getApplicationContext();
         AppDatabase db = AppDatabase.getInstance(context);
-        
         String today = new SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(new Date());
 
         List<Goal> goals = db.goalDao().getAllGoals();
         for (Goal goal : goals) {
             if (goal.isFrozen) continue;
-
             List<Payment> payments = db.goalDao().getPaymentsForGoal(goal.id);
             for (Payment p : payments) {
                 if (p.date.equals(today) && p.status.equals("pending")) {
-                    // Берем сумму к оплате (если это частичный платеж, то остаток)
                     double amountToPay = p.remainingAmount > 0 ? p.remainingAmount : p.amount;
-                    showNotification(context, goal.name, amountToPay, goal.currency, goal.id);
+                    showNotification(context, goal, p, amountToPay);
                     break; 
                 }
             }
@@ -47,45 +44,44 @@ public class NotificationWorker extends Worker {
         return Result.success();
     }
 
-    private void showNotification(Context context, String goalName, double amount, String currency, int goalId) {
-        // Уникальный ID канала, чтобы телефон применил новый звук
+    private void showNotification(Context context, Goal goal, Payment p, double amount) {
         String channelId = "kopilka_custom_sound_channel_v1"; 
         NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // 1. Настраиваем параметры звука
             AudioAttributes audioAttributes = new AudioAttributes.Builder()
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                    .build();
-
-            // 2. Создаем канал уведомлений
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION).build();
             NotificationChannel channel = new NotificationChannel(channelId, "Напоминания", NotificationManager.IMPORTANCE_HIGH);
-
-            // 3. Привязываем твой звук my_sound.mp3 из папки raw
             Uri soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + R.raw.my_sound);
             channel.setSound(soundUri, audioAttributes);
-            
             manager.createNotificationChannel(channel);
         }
 
-        // При нажатии на уведомление открываем экран этой цели
-        Intent intent = new Intent(context, GoalDetailActivity.class);
-        intent.putExtra("goal_id", goalId);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        PendingIntent pendingIntent = PendingIntent.getActivity(context, goalId, intent, PendingIntent.FLAG_IMMUTABLE);
+        // Открыть приложение
+        Intent openIntent = new Intent(context, GoalDetailActivity.class);
+        openIntent.putExtra("goal_id", goal.id);
+        openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        PendingIntent openPending = PendingIntent.getActivity(context, goal.id, openIntent, PendingIntent.FLAG_IMMUTABLE);
 
-        String text = "Сегодня необходимо отложить " + DateUtils.formatMoney(amount) + " " + currency + " на цель «" + goalName + "»";
+        // Кнопка "Внести" (будет обработана Receiver'ом)
+        Intent actionIntent = new Intent(context, NotificationActionReceiver.class);
+        actionIntent.putExtra("goal_id", goal.id);
+        actionIntent.putExtra("payment_id", p.id);
+        PendingIntent actionPending = PendingIntent.getBroadcast(context, p.id, actionIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+        String text = "Сегодня необходимо отложить " + DateUtils.formatMoney(amount) + " " + goal.currency;
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_rocket)
-            .setContentTitle("Копилка")
+            .setContentTitle("Копилка: " + goal.name)
             .setContentText(text)
             .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(openPending)
+            .addAction(android.R.drawable.checkbox_on_background, "Внести", actionPending) // Кнопка!
             .setAutoCancel(true);
 
-        manager.notify(goalId, builder.build());
+        manager.notify(goal.id, builder.build());
     }
 }
