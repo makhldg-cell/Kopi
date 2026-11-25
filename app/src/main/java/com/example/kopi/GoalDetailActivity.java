@@ -28,6 +28,8 @@ public class GoalDetailActivity extends AppCompatActivity {
     private PaymentAdapter adapter;
     private int goalId;
     private RecyclerView recyclerView;
+    private EditText etAddAmount;
+    private Button btnAddAmount;
     
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -51,10 +53,14 @@ public class GoalDetailActivity extends AppCompatActivity {
         recyclerView = findViewById(R.id.recyclerViewSchedule);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        EditText etAddAmount = findViewById(R.id.etAddAmount);
-        Button btnAddAmount = findViewById(R.id.btnAddAmount);
+        etAddAmount = findViewById(R.id.etAddAmount);
+        btnAddAmount = findViewById(R.id.btnAddAmount);
 
         btnAddAmount.setOnClickListener(v -> {
+            if (currentGoal.isFrozen) {
+                Toast.makeText(this, "Цель заморожена. Разморозьте её, чтобы вносить суммы.", Toast.LENGTH_SHORT).show();
+                return;
+            }
             try {
                 double addSum = Double.parseDouble(etAddAmount.getText().toString());
                 if (addSum > 0) addAmountToGoal(addSum);
@@ -88,14 +94,11 @@ public class GoalDetailActivity extends AppCompatActivity {
         executor.execute(() -> {
             currentGoal.currentAmount += amount;
             db.goalDao().update(currentGoal);
-            
-            // ВОТ ГЛАВНОЕ: пересчитываем график с нуля!
             DateUtils.recalculateSchedule(currentGoal, db);
-            
             List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
             
             mainHandler.post(() -> {
-                ((EditText)findViewById(R.id.etAddAmount)).setText("");
+                etAddAmount.setText("");
                 updateUI();
                 adapter = new PaymentAdapter(payments);
                 recyclerView.setAdapter(adapter);
@@ -120,6 +123,19 @@ public class GoalDetailActivity extends AppCompatActivity {
         tvCalculation.setText(calcText);
         ((TextView)findViewById(R.id.tvDetailLink)).setText("Ссылка: " + (currentGoal.link.isEmpty() ? "нет" : currentGoal.link));
         ((TextView)findViewById(R.id.tvDetailComment)).setText("Комментарий: " + (currentGoal.comment.isEmpty() ? "нет" : currentGoal.comment));
+
+        // ЛОГИКА БЛОКИРОВКИ
+        if (currentGoal.isFrozen) {
+            etAddAmount.setEnabled(false);
+            btnAddAmount.setEnabled(false);
+            btnAddAmount.setText("ЦЕЛЬ ЗАМОРОЖЕНА ❄️");
+            btnAddAmount.setBackgroundColor(Color.parseColor("#9E9E9E")); // Серый цвет
+        } else {
+            etAddAmount.setEnabled(true);
+            btnAddAmount.setEnabled(true);
+            btnAddAmount.setText("ВНЕСТИ СУММУ");
+            btnAddAmount.setBackgroundColor(Color.parseColor("#9C27B0")); // Фиолетовый (стандартный)
+        }
     }
 
     private class PaymentAdapter extends RecyclerView.Adapter<PaymentAdapter.PayViewHolder> {
@@ -156,7 +172,13 @@ public class GoalDetailActivity extends AppCompatActivity {
                 holder.tvPayStatus.setText("⏳");
             }
 
-            holder.itemView.setOnClickListener(v -> showEditPaymentDialog(p));
+            holder.itemView.setOnClickListener(v -> {
+                if (currentGoal.isFrozen) {
+                    Toast.makeText(GoalDetailActivity.this, "Цель заморожена", Toast.LENGTH_SHORT).show();
+                } else {
+                    showEditPaymentDialog(p);
+                }
+            });
         }
 
         @Override
@@ -181,7 +203,6 @@ public class GoalDetailActivity extends AppCompatActivity {
         builder.setItems(options, (dialog, which) -> {
             dialog.dismiss(); 
             if (which == 0) {
-                // Если нажали "Внести" — добавляем эту сумму к балансу!
                 addAmountToGoal(p.amount);
             } else if (which == 1) {
                 p.status = "missed";
