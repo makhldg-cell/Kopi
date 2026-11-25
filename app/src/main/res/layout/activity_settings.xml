@@ -11,6 +11,7 @@
         android:text="Настройки уведомлений"
         android:textSize="24sp"
         android:textStyle="bold"
+        android:textColor="?android:attr/textColorPrimary"
         android:layout_marginBottom="24dp"/>
 
     <Switch
@@ -19,13 +20,15 @@
         android:layout_height="wrap_content"
         android:text="Включить напоминания"
         android:textSize="18sp"
+        android:textColor="?android:attr/textColorPrimary"
         android:layout_marginBottom="16dp"/>
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Время напоминания:"
+        android:text="Время напоминания (24-часовой формат):"
         android:textSize="16sp"
+        android:textColor="?android:attr/textColorPrimary"
         android:layout_marginBottom="8dp"/>
 
     <TimePicker
