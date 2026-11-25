@@ -30,15 +30,10 @@ public class DateUtils {
         }
     }
 
-    // ТА САМАЯ ФУНКЦИЯ ПЕРЕСЧЕТА ГРАФИКА
     public static void updateScheduleBasedOnProgress(Goal goal, AppDatabase db) {
-        // 1. Берем все платежи из базы
         List<Payment> payments = db.goalDao().getPaymentsForGoal(goal.id);
-        
-        // Сортируем их по дате (чтобы шли строго по календарю)
         Collections.sort(payments, (p1, p2) -> parseDate(p1.date).compareTo(parseDate(p2.date)));
 
-        // 2. Начинаем "раздавать" внесенные деньги
         double moneyToDistribute = goal.currentAmount;
         int paymentIndex = 0;
 
@@ -46,31 +41,25 @@ public class DateUtils {
             Payment p = payments.get(paymentIndex);
             
             if (moneyToDistribute >= p.amount) {
-                // Если денег хватает на весь платеж — закрываем его
                 p.status = "paid";
                 moneyToDistribute -= p.amount;
             } else {
-                // Если денег меньше, чем платеж — делаем его частичным (оранжевым)
                 p.status = "partial";
-                moneyToDistribute = 0; // Деньги кончились
+                moneyToDistribute = 0;
             }
             
-            // Сохраняем изменения статуса в базе
             db.goalDao().updatePayment(p);
             paymentIndex++;
         }
 
-        // 3. Если остались платежи после внесенных (их не коснулись) — они остаются "pending" (в ожидании).
-        // Но если цель уже достигнута (внесли больше, чем надо), мы можем удалить оставшиеся платежи.
         if (goal.currentAmount >= goal.targetAmount) {
-            // Цель достигнута, удаляем все оставшиеся "pending" платежи
             for (int i = paymentIndex; i < payments.size(); i++) {
-                db.goalDao().deletePayment(payments.get(i));
+                // Передаем ID платежа, а не объект
+                db.goalDao().deletePayment(payments.get(i).id);
             }
         }
     }
 
-    // Начальная генерация графика (используется при создании цели)
     public static void generateSchedule(Goal goal, AppDatabase db) {
         List<Payment> schedule = new ArrayList<>();
         Calendar cal = Calendar.getInstance();
