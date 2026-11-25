@@ -15,7 +15,6 @@ public class Goal {
     public String link;
     public String comment;
 
-    // Настройки графика
     public String frequency; 
     public int dayOfWeek; 
     public int dayOfMonth1; 
@@ -23,6 +22,8 @@ public class Goal {
     public double paymentAmount; 
     public String endDate; 
 
-    // Новое поле для заморозки
     public boolean isFrozen = false;
+    
+    // НОВОЕ ПОЛЕ: Строгий режим
+    public boolean isStrictMode = false; 
 }
