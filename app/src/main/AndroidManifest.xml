@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    
+    <!-- Разрешения для точных будильников -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <application
         android:allowBackup="true"
@@ -21,6 +25,9 @@
         <activity android:name=".AddGoalActivity" />
         <activity android:name=".GoalDetailActivity" />
         <activity android:name=".SettingsActivity" />
+
+        <!-- Регистрируем приемник будильника -->
+        <receiver android:name=".AlarmReceiver" />
 
     </application>
 </manifest>
