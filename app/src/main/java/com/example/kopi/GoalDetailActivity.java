@@ -57,7 +57,9 @@ public class GoalDetailActivity extends AppCompatActivity {
         btnAddAmount.setOnClickListener(v -> {
             try {
                 double addSum = Double.parseDouble(etAddAmount.getText().toString());
-                addAmountToGoal(addSum);
+                if (addSum > 0) {
+                    addAmountToGoal(addSum);
+                }
             } catch (Exception e) {
                 Toast.makeText(this, "Введите сумму", Toast.LENGTH_SHORT).show();
             }
@@ -73,6 +75,12 @@ public class GoalDetailActivity extends AppCompatActivity {
     private void loadGoalAndPayments() {
         executor.execute(() -> {
             currentGoal = db.goalDao().getGoalById(goalId);
+            
+            // ВОТ ЗДЕСЬ МЫ ПЕРЕСЧИТЫВАЕМ ГРАФИК ПРИ ЗАГРУЗКЕ!
+            if (currentGoal != null) {
+                DateUtils.updateScheduleBasedOnProgress(currentGoal, db);
+            }
+            
             List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
 
             mainHandler.post(() -> {
@@ -89,6 +97,9 @@ public class GoalDetailActivity extends AppCompatActivity {
             currentGoal.currentAmount += amount;
             db.goalDao().update(currentGoal);
             
+            // ПЕРЕСЧИТЫВАЕМ ГРАФИК ПОСЛЕ ВНЕСЕНИЯ
+            DateUtils.updateScheduleBasedOnProgress(currentGoal, db);
+            
             List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
             
             mainHandler.post(() -> {
@@ -96,7 +107,7 @@ public class GoalDetailActivity extends AppCompatActivity {
                 updateUI();
                 adapter = new PaymentAdapter(payments);
                 recyclerView.setAdapter(adapter);
-                Toast.makeText(this, "Сумма добавлена!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Сумма добавлена! График пересчитан.", Toast.LENGTH_SHORT).show();
             });
         });
     }
@@ -112,7 +123,7 @@ public class GoalDetailActivity extends AppCompatActivity {
         } else if (currentGoal.paymentAmount > 0) {
             int paymentsNeeded = (int) Math.ceil(remaining / currentGoal.paymentAmount);
             calcText = "Осталось: " + DateUtils.formatMoney(remaining) + " " + currentGoal.currency + "\n" +
-                       "При взносе по " + DateUtils.formatMoney(currentGoal.paymentAmount) + " нужно сделать: " + paymentsNeeded + " взносов.";
+                       "Осталось сделать взносов: " + paymentsNeeded;
         }
         tvCalculation.setText(calcText);
         ((TextView)findViewById(R.id.tvDetailLink)).setText("Ссылка: " + (currentGoal.link.isEmpty() ? "нет" : currentGoal.link));
@@ -171,45 +182,23 @@ public class GoalDetailActivity extends AppCompatActivity {
     }
 
     private void showEditPaymentDialog(Payment p) {
-        String[] options = {"Отметить как Внесен", "Отметить как Пропущен", "Внести частично"};
+        String[] options = {"Отметить как Внесен", "Отметить как Пропущен"};
         
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Платеж на " + p.date);
         builder.setItems(options, (dialog, which) -> {
             dialog.dismiss(); 
-
-            if (which == 0) {
-                if (currentGoal.paymentAmount != p.amount) {
-                    new AlertDialog.Builder(this)
-                        .setTitle("Внимание")
-                        .setMessage("Сумма взноса не соответствует прогрессу. Вы уверены?")
-                        .setPositiveButton("Да", (d, w) -> {
-                            p.status = "paid";
-                            savePaymentInBackground(p);
-                        })
-                        .setNegativeButton("Отмена", null)
-                        .show();
-                } else {
-                    p.status = "paid";
-                    savePaymentInBackground(p);
-                }
-            } else if (which == 1) {
-                p.status = "missed";
-                savePaymentInBackground(p);
-            } else if (which == 2) {
-                p.status = "partial";
-                savePaymentInBackground(p);
-            }
+            if (which == 0) p.status = "paid";
+            else if (which == 1) p.status = "missed";
+            
+            savePaymentInBackground(p);
         });
-        
         builder.show();
     }
 
     private void savePaymentInBackground(Payment p) {
         executor.execute(() -> {
-            // ВОТ ГЛАВНОЕ ИСПРАВЛЕНИЕ: используем updatePayment вместо insertPayment
             AppDatabase.getInstance(this).goalDao().updatePayment(p);
-            
             List<Payment> updatedPayments = db.goalDao().getPaymentsForGoal(goalId);
             
             mainHandler.post(() -> {
