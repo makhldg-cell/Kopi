@@ -1,17 +1,23 @@
 package com.example.kopi;
 
+import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
 public class DateUtils {
     public static final String DATE_FORMAT = "dd.MM.yyyy";
+
+    // Красивое форматирование денег (10000 -> 10 000, 10000.5 -> 10 000.5)
+    public static String formatMoney(double amount) {
+        DecimalFormat df = new DecimalFormat("#,##0.##");
+        return df.format(amount).replace(',', ' ');
+    }
 
     public static String formatDate(Date date) {
         return new SimpleDateFormat(DATE_FORMAT, Locale.getDefault()).format(date);
@@ -89,7 +95,6 @@ public class DateUtils {
             }
         }
 
-        // Сортировка по РЕАЛЬНОЙ дате, а не по строке!
         Collections.sort(schedule, (p1, p2) -> parseDate(p1.date).compareTo(parseDate(p2.date)));
 
         for (Payment p : schedule) {
@@ -105,4 +110,4 @@ public class DateUtils {
         p.date = formatDate(date);
         return p;
     }
-                        }
+}
