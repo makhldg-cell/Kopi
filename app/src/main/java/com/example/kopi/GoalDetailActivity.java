@@ -58,11 +58,10 @@ public class GoalDetailActivity extends AppCompatActivity {
             try {
                 double addSum = Double.parseDouble(etAddAmount.getText().toString());
                 if (addSum > 0) {
-                    // Вопрос вылезает, если сумма >= плана ИЛИ до платежа > 2 дней
                     if (addSum >= currentGoal.paymentAmount || DateUtils.daysUntilNextPayment(goalId, db) > 2) {
                         showDistributionDialog(addSum);
                     } else {
-                        applyAmount(addSum, true); // По умолчанию в платеж
+                        applyAmount(addSum, true);
                     }
                 }
             } catch (Exception e) {
@@ -90,10 +89,8 @@ public class GoalDetailActivity extends AppCompatActivity {
     private void applyAmount(double amount, boolean applyToPayments) {
         executor.execute(() -> {
             if (applyToPayments) {
-                // Логика: 1500 -> 1000 в текущий, 500 в следующий
                 DateUtils.applyToNearestPayments(currentGoal, db, amount);
             } else {
-                // Логика: пересчет
                 currentGoal.currentAmount += amount;
                 db.goalDao().update(currentGoal);
                 DateUtils.recalculateFutureSchedule(currentGoal, db);
@@ -165,7 +162,6 @@ public class GoalDetailActivity extends AppCompatActivity {
             Payment p = payments.get(position);
             holder.tvPayDate.setText(p.date);
             
-            // Показываем внесено и осталось для частичных
             if (p.status.equals("partial")) {
                 holder.tvPayAmount.setText("Внесено: " + DateUtils.formatMoney(p.amount - p.remainingAmount) + 
                                            "\nОсталось: " + DateUtils.formatMoney(p.remainingAmount));
@@ -208,32 +204,70 @@ public class GoalDetailActivity extends AppCompatActivity {
     }
 
     private void showEditPaymentDialog(Payment p) {
-        String[] options = {"Внести остаток по этому платежу", "Отметить как Пропущен"};
+        List<String> optionsList = new java.util.ArrayList<>();
         
+        if (p.status.equals("pending") || p.status.equals("partial")) {
+            optionsList.add("Внести (Учесть сумму)");
+            optionsList.add("Отметить как Пропущен");
+        } else if (p.status.equals("missed")) {
+            optionsList.add("Внести (Учесть сумму)");
+            optionsList.add("Отменить пропуск (Вернуть в ожидание)");
+        } else if (p.status.equals("paid")) {
+            optionsList.add("Отменить внесение (Вернуть в ожидание)");
+            optionsList.add("Отметить как Пропущен (С отменой оплаты)");
+        }
+
+        String[] options = optionsList.toArray(new String[0]);
+
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Платеж на " + p.date);
         builder.setItems(options, (dialog, which) -> {
-            dialog.dismiss(); 
-            if (which == 0) {
+            dialog.dismiss();
+            String selected = options[which];
+
+            if (selected.startsWith("Внести")) {
                 double amountToPay = p.status.equals("partial") ? p.remainingAmount : p.amount;
                 applyAmount(amountToPay, true);
-            } else if (which == 1) {
+            } else if (selected.startsWith("Отметить как Пропущен")) {
+                // Если он был оплачен, откатываем сумму
+                if (p.status.equals("paid")) {
+                    currentGoal.currentAmount -= p.amount;
+                    db.goalDao().update(currentGoal);
+                }
                 p.status = "missed";
-                savePaymentStatusInBackground(p);
+                p.remainingAmount = p.amount;
+                saveAndRecalculate(p);
+            } else if (selected.equals("Отменить пропуск (Вернуть в ожидание)")) {
+                p.status = "pending";
+                p.remainingAmount = p.amount;
+                saveAndRecalculate(p);
+            } else if (selected.equals("Отменить внесение (Вернуть в ожидание)")) {
+                currentGoal.currentAmount -= p.amount;
+                db.goalDao().update(currentGoal);
+                p.status = "pending";
+                p.remainingAmount = p.amount;
+                saveAndRecalculate(p);
             }
         });
         builder.show();
     }
 
-    private void savePaymentStatusInBackground(Payment p) {
+    private void saveAndRecalculate(Payment p) {
         executor.execute(() -> {
             AppDatabase.getInstance(this).goalDao().updatePayment(p);
+            // Пересчитываем общую сумму и график (появление нового платежа в конце)
+            DateUtils.recalculateGoalAmount(currentGoal, db);
+            DateUtils.recalculateFutureSchedule(currentGoal, db);
+
             List<Payment> updatedPayments = db.goalDao().getPaymentsForGoal(goalId);
-            
+            Goal updatedGoal = db.goalDao().getGoalById(goalId);
+
             mainHandler.post(() -> {
+                currentGoal = updatedGoal;
+                updateUI();
                 adapter = new PaymentAdapter(updatedPayments);
                 recyclerView.setAdapter(adapter);
-                Toast.makeText(this, "Платеж пропущен", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Данные обновлены", Toast.LENGTH_SHORT).show();
             });
         });
     }
