@@ -9,6 +9,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Spinner;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
@@ -17,6 +18,7 @@ public class AddGoalActivity extends AppCompatActivity {
     private Spinner spinnerFrequency;
     private EditText etDayOfWeek, etDayOfMonth1, etDayOfMonth2, etTargetAmount, etPaymentAmount;
     private TextView tvCalculatedDate;
+    private Switch switchStrictMode;
     private int editGoalId = -1;
     private Goal existingGoal;
 
@@ -32,6 +34,7 @@ public class AddGoalActivity extends AppCompatActivity {
         etDayOfWeek = findViewById(R.id.etDayOfWeek);
         etDayOfMonth1 = findViewById(R.id.etDayOfMonth1);
         etDayOfMonth2 = findViewById(R.id.etDayOfMonth2);
+        switchStrictMode = findViewById(R.id.switchStrictMode);
         EditText etLink = findViewById(R.id.etLink);
         EditText etComment = findViewById(R.id.etComment);
         Spinner spinnerCurrency = findViewById(R.id.spinnerCurrency);
@@ -57,6 +60,7 @@ public class AddGoalActivity extends AppCompatActivity {
                 etPaymentAmount.setText(String.valueOf(existingGoal.paymentAmount));
                 etLink.setText(existingGoal.link);
                 etComment.setText(existingGoal.comment);
+                switchStrictMode.setChecked(existingGoal.isStrictMode);
                 
                 int freqPos = 0;
                 if (existingGoal.frequency.equals("Два раза в месяц")) freqPos = 1;
@@ -108,14 +112,11 @@ public class AddGoalActivity extends AppCompatActivity {
                 
                 if (freq.equals("Раз в неделю")) {
                     d1 = Integer.parseInt(etDayOfWeek.getText().toString());
-                    if (d1 < 1 || d1 > 7) throw new Exception("День недели должен быть от 1 до 7");
                 } else if (freq.equals("Раз в месяц")) {
                     d1 = Integer.parseInt(etDayOfMonth1.getText().toString());
-                    if (d1 < 1 || d1 > 31) throw new Exception("Число должно быть от 1 до 31");
                 } else if (freq.equals("Два раза в месяц")) {
                     d1 = Integer.parseInt(etDayOfMonth1.getText().toString());
                     d2 = Integer.parseInt(etDayOfMonth2.getText().toString());
-                    if (d1 < 1 || d1 > 31 || d2 < 1 || d2 > 31) throw new Exception("Числа должны быть от 1 до 31");
                     if (d1 == d2) throw new Exception("Даты не должны совпадать!");
                 }
 
@@ -127,6 +128,7 @@ public class AddGoalActivity extends AppCompatActivity {
                 goal.comment = etComment.getText().toString();
                 goal.frequency = freq;
                 goal.paymentAmount = Double.parseDouble(etPaymentAmount.getText().toString());
+                goal.isStrictMode = switchStrictMode.isChecked();
                 goal.dayOfMonth1 = d1;
                 goal.dayOfMonth2 = d2;
                 
@@ -136,17 +138,16 @@ public class AddGoalActivity extends AppCompatActivity {
                     goal.currentAmount = 0;
                     long id = AppDatabase.getInstance(this).goalDao().insert(goal);
                     goal.id = (int) id;
+                    DateUtils.generateSchedule(goal, AppDatabase.getInstance(this));
                 } else {
+                    // ПРИ РЕДАКТИРОВАНИИ МЫ НЕ УДАЛЯЕМ СТАРЫЕ ПЛАТЕЖИ, А ПЕРЕСЧИТЫВАЕМ БУДУЩИЕ
                     AppDatabase.getInstance(this).goalDao().update(goal);
-                    AppDatabase.getInstance(this).goalDao().deletePaymentsForGoal(goal.id);
+                    DateUtils.recalculateFutureSchedule(goal, AppDatabase.getInstance(this));
                 }
                 
-                DateUtils.generateSchedule(goal, AppDatabase.getInstance(this));
                 finish();
-            } catch (NumberFormatException e) {
-                Toast.makeText(this, "Заполните числовые поля", Toast.LENGTH_SHORT).show();
             } catch (Exception e) {
-                Toast.makeText(this, e.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Проверьте поля: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
     }
