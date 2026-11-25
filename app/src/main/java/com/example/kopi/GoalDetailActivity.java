@@ -18,6 +18,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class GoalDetailActivity extends AppCompatActivity {
     private Goal currentGoal;
@@ -26,6 +28,10 @@ public class GoalDetailActivity extends AppCompatActivity {
     private PaymentAdapter adapter;
     private int goalId;
     private RecyclerView recyclerView;
+    
+    // Пул потоков для работы с базой данных (чтобы не было вылетов)
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,11 +58,7 @@ public class GoalDetailActivity extends AppCompatActivity {
         btnAddAmount.setOnClickListener(v -> {
             try {
                 double addSum = Double.parseDouble(etAddAmount.getText().toString());
-                currentGoal.currentAmount += addSum;
-                db.goalDao().update(currentGoal);
-                etAddAmount.setText("");
-                updateUI();
-                Toast.makeText(this, "Сумма добавлена!", Toast.LENGTH_SHORT).show();
+                addAmountToGoal(addSum);
             } catch (Exception e) {
                 Toast.makeText(this, "Введите сумму", Toast.LENGTH_SHORT).show();
             }
@@ -66,13 +68,43 @@ public class GoalDetailActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        currentGoal = db.goalDao().getGoalById(goalId);
-        if (currentGoal == null) { finish(); return; }
-        
-        updateUI();
-        
-        adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(goalId));
-        recyclerView.setAdapter(adapter);
+        // Загружаем данные в фоне
+        loadGoalAndPayments();
+    }
+
+    // Загрузка цели и платежей в фоновом потоке
+    private void loadGoalAndPayments() {
+        executor.execute(() -> {
+            currentGoal = db.goalDao().getGoalById(goalId);
+            List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
+
+            // Возвращаемся в главный поток, чтобы обновить интерфейс
+            mainHandler.post(() -> {
+                if (currentGoal == null) { finish(); return; }
+                updateUI();
+                adapter = new PaymentAdapter(payments);
+                recyclerView.setAdapter(adapter);
+            });
+        });
+    }
+
+    // Внесение суммы в фоне
+    private void addAmountToGoal(double amount) {
+        executor.execute(() -> {
+            currentGoal.currentAmount += amount;
+            db.goalDao().update(currentGoal);
+            
+            List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
+            
+            mainHandler.post(() -> {
+                findViewById(R.id.etAddAmount).clearFocus();
+                ((EditText)findViewById(R.id.etAddAmount)).setText("");
+                updateUI();
+                adapter = new PaymentAdapter(payments);
+                recyclerView.setAdapter(adapter);
+                Toast.makeText(this, "Сумма добавлена!", Toast.LENGTH_SHORT).show();
+            });
+        });
     }
 
     private void updateUI() {
@@ -150,10 +182,8 @@ public class GoalDetailActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Платеж на " + p.date);
         builder.setItems(options, (dialog, which) -> {
-            // 1. Закрываем диалог
             dialog.dismiss(); 
 
-            // 2. Логика выбора
             if (which == 0) {
                 if (currentGoal.paymentAmount != p.amount) {
                     new AlertDialog.Builder(this)
@@ -161,31 +191,45 @@ public class GoalDetailActivity extends AppCompatActivity {
                         .setMessage("Сумма взноса не соответствует прогрессу. Вы уверены?")
                         .setPositiveButton("Да", (d, w) -> {
                             p.status = "paid";
-                            saveAndRefresh(p);
+                            savePaymentInBackground(p);
                         })
                         .setNegativeButton("Отмена", null)
                         .show();
                 } else {
                     p.status = "paid";
-                    saveAndRefresh(p);
+                    savePaymentInBackground(p);
                 }
             } else if (which == 1) {
                 p.status = "missed";
-                saveAndRefresh(p);
+                savePaymentInBackground(p);
             } else if (which == 2) {
                 p.status = "partial";
-                saveAndRefresh(p);
+                savePaymentInBackground(p);
             }
         });
         
         builder.show();
     }
 
-    private void saveAndRefresh(Payment p) {
-        // Сохраняем в базу
-        AppDatabase.getInstance(this).goalDao().insertPayment(p);
-        
-        // Магия: ждем 200 миллисекунд, чтобы диалоговое окно 100% закрылось, и перезагружаем экран
-        new Handler(Looper.getMainLooper()).postDelayed(this::recreate, 200);
+    // Сохранение статуса платежа в фоне
+    private void savePaymentInBackground(Payment p) {
+        executor.execute(() -> {
+            AppDatabase.getInstance(this).goalDao().insertPayment(p);
+            
+            // После сохранения загружаем обновленный список
+            List<Payment> updatedPayments = db.goalDao().getPaymentsForGoal(goalId);
+            
+            mainHandler.post(() -> {
+                adapter = new PaymentAdapter(updatedPayments);
+                recyclerView.setAdapter(adapter);
+                Toast.makeText(this, "Статус обновлен", Toast.LENGTH_SHORT).show();
+            });
+        });
     }
-                }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        executor.shutdown(); // Закрываем поток при выходе
+    }
+}
