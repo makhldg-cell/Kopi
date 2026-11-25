@@ -1,18 +1,21 @@
 package com.example.kopi;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
-import android.content.SharedPreferences;
+import android.content.Intent;
+import android.os.Build;
 import androidx.annotation.NonNull;
+import androidx.core.app.NotificationCompat;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
 public class NotificationWorker extends Worker {
-
     public NotificationWorker(@NonNull Context context, @NonNull WorkerParameters workerParams) {
         super(context, workerParams);
     }
@@ -20,51 +23,51 @@ public class NotificationWorker extends Worker {
     @NonNull
     @Override
     public Result doWork() {
-        // Проверяем настройки пользователя
-        SharedPreferences prefs = getApplicationContext().getSharedPreferences("settings", Context.MODE_PRIVATE);
-        boolean isEnabled = prefs.getBoolean("notif_enabled", true);
-        if (!isEnabled) return Result.success();
-
-        int savedHour = prefs.getInt("notif_hour", 9);
-        int savedMinute = prefs.getInt("notif_minute", 0);
-
-        // Проверяем текущее время
-        Calendar now = Calendar.getInstance();
-        int currentHour = now.get(Calendar.HOUR_OF_DAY);
-        int currentMinute = now.get(Calendar.MINUTE);
-
-        // Если сейчас не то время, ничего не делаем (разрешаем погрешность в 15 минут, так как Worker запускается периодически)
-        if (currentHour != savedHour || currentMinute < savedMinute || currentMinute > savedMinute + 14) {
-            return Result.success();
-        }
-
-        AppDatabase db = AppDatabase.getInstance(getApplicationContext());
-        List<Goal> goals = db.goalDao().getAllGoals();
-        SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy", Locale.getDefault());
+        Context context = getApplicationContext();
+        AppDatabase db = AppDatabase.getInstance(context);
         
-        String today = sdf.format(new Date());
-        Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.DAY_OF_YEAR, 1);
-        String tomorrow = sdf.format(cal.getTime());
+        String today = new SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(new Date());
 
+        List<Goal> goals = db.goalDao().getAllGoals();
         for (Goal goal : goals) {
             if (goal.isFrozen) continue;
 
             List<Payment> payments = db.goalDao().getPaymentsForGoal(goal.id);
             for (Payment p : payments) {
-                if (p.status.equals("pending") || p.status.equals("partial")) {
-                    if (p.date.equals(today)) {
-                        NotificationUtils.showNotification(getApplicationContext(),
-                                "Взнос по цели: " + goal.name,
-                                "Сегодня нужно внести " + DateUtils.formatMoney(p.amount - p.paidAmount) + " " + goal.currency);
-                    } else if (p.date.equals(tomorrow)) {
-                        NotificationUtils.showNotification(getApplicationContext(),
-                                "Напоминание по цели: " + goal.name,
-                                "Завтра плановый взнос " + DateUtils.formatMoney(p.amount - p.paidAmount) + " " + goal.currency);
-                    }
+                if (p.date.equals(today) && p.status.equals("pending")) {
+                    showNotification(context, goal.name, p.amount, goal.currency);
+                    break; 
                 }
             }
         }
         return Result.success();
+    }
+
+    private void showNotification(Context context, String goalName, double amount, String currency) {
+        String channelId = "kopilka_channel";
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(channelId, "Напоминания", NotificationManager.IMPORTANCE_HIGH);
+            manager.createNotificationChannel(channel);
+        }
+
+        Intent intent = new Intent(context, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
+
+        // Строгий текст без эмодзи
+        String text = "Сегодня необходимо отложить " + DateUtils.formatMoney(amount) + " " + currency + " на цель «" + goalName + "»";
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_rocket) // Иконка ракеты в уведомлении
+            .setContentTitle("Копилка")
+            .setContentText(text)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true);
+
+        manager.notify(1, builder.build());
     }
 }
