@@ -35,7 +35,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String KEY_NOTIFICATIONS_ENABLED = "notif_enabled";
     private static final String KEY_NOTIFICATION_HOUR = "notif_hour";
     private static final String KEY_NOTIFICATION_MINUTE = "notif_minute";
-    private static final String KEY_CHECK_COUNT = "check_count"; // 1, 2, 3, 4
+    private static final String KEY_CHECK_COUNT = "check_count";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,7 +48,8 @@ public class MainActivity extends AppCompatActivity {
             requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 101);
         }
 
-        scheduleDailyNotification();
+        setupNotificationWork(); // Настройка пушей
+        setupBackgroundCheckWork(); // Настройка частоты проверки в фоне
 
         db = AppDatabase.getInstance(this);
         recyclerView = findViewById(R.id.recyclerView);
@@ -68,7 +69,7 @@ public class MainActivity extends AppCompatActivity {
         boolean isEnabled = prefs.getBoolean(KEY_NOTIFICATIONS_ENABLED, true);
         int hour = prefs.getInt(KEY_NOTIFICATION_HOUR, 12);
         int minute = prefs.getInt(KEY_NOTIFICATION_MINUTE, 0);
-        int checkCount = prefs.getInt(KEY_CHECK_COUNT, 1); // По умолчанию 1 раз
+        int checkCount = prefs.getInt(KEY_CHECK_COUNT, 1);
 
         String timeStr = String.format(Locale.getDefault(), "%02d:%02d", hour, minute);
 
@@ -76,18 +77,17 @@ public class MainActivity extends AppCompatActivity {
         Switch switchEnabled = dialogView.findViewById(R.id.switchNotifications);
         TextView tvTime = dialogView.findViewById(R.id.tvTimeValue);
         View btnPickTime = dialogView.findViewById(R.id.btnPickTime);
-        TextView tvCheckFrequency = dialogView.findViewById(R.id.tvCheckFrequency); // Новое поле
+        TextView tvCheckFrequency = dialogView.findViewById(R.id.tvCheckFrequency);
 
         switchEnabled.setChecked(isEnabled);
         tvTime.setText(timeStr);
         
-        // Отображаем текущую частоту
-        String[] checkLabels = {"1 раз (в 12:00)", "2 раза (12:00, 24:00)", "3 раза (8:00, 16:00, 24:00)", "4 раза (6:00, 12:00, 18:00, 24:00)"};
+        String[] checkLabels = {"1 раз", "2 раза", "3 раза", "4 раза"};
         tvCheckFrequency.setText(checkLabels[checkCount - 1]);
 
         switchEnabled.setOnCheckedChangeListener((buttonView, isChecked) -> {
             prefs.edit().putBoolean(KEY_NOTIFICATIONS_ENABLED, isChecked).apply();
-            scheduleDailyNotification();
+            setupNotificationWork();
         });
 
         btnPickTime.setOnClickListener(v -> {
@@ -98,25 +98,18 @@ public class MainActivity extends AppCompatActivity {
                                 .putInt(KEY_NOTIFICATION_MINUTE, minute1)
                                 .apply();
                         tvTime.setText(String.format(Locale.getDefault(), "%02d:%02d", hourOfDay, minute1));
-                        scheduleDailyNotification();
+                        setupNotificationWork();
                     }, hour, minute, true);
             timePickerDialog.show();
         });
 
-        // Обработка выбора частоты
         dialogView.findViewById(R.id.btnPickFrequency).setOnClickListener(v -> {
-            String[] options = {
-                "1 раз в день (по умолчанию)",
-                "2 раза в день",
-                "3 раза в день",
-                "4 раза в день (тратит батарею)"
-            };
             new AlertDialog.Builder(this)
-                .setTitle("Как часто проверять обновление цели?")
-                .setItems(options, (d, which) -> {
+                .setTitle("Как часто проверять цели в фоне?")
+                .setItems(checkLabels, (d, which) -> {
                     prefs.edit().putInt(KEY_CHECK_COUNT, which + 1).apply();
                     tvCheckFrequency.setText(checkLabels[which]);
-                    scheduleDailyNotification();
+                    setupBackgroundCheckWork();
                 })
                 .show();
         });
@@ -127,64 +120,58 @@ public class MainActivity extends AppCompatActivity {
                 .setPositiveButton("Тест сейчас", (dialog, which) -> {
                     OneTimeWorkRequest testRequest = new OneTimeWorkRequest.Builder(NotificationWorker.class).build();
                     WorkManager.getInstance(this).enqueue(testRequest);
-                    Toast.makeText(this, "Тест уведомления запущен!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Тест запущен!", Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("Закрыть", null)
                 .show();
     }
 
-    // Планировщик с учетом частоты
-    private void scheduleDailyNotification() {
+    // Настройка ПУШ-УВЕДОМЛЕНИЙ (строго в заданное время)
+    private void setupNotificationWork() {
         boolean isEnabled = prefs.getBoolean(KEY_NOTIFICATIONS_ENABLED, true);
         if (!isEnabled) {
-            WorkManager.getInstance(this).cancelUniqueWork("DailyPaymentCheck");
+            WorkManager.getInstance(this).cancelUniqueWork("NotificationWork");
             return;
         }
 
         int hour = prefs.getInt(KEY_NOTIFICATION_HOUR, 12);
         int minute = prefs.getInt(KEY_NOTIFICATION_MINUTE, 0);
-        int checkCount = prefs.getInt(KEY_CHECK_COUNT, 1);
 
-        // Если частота 1 — как раньше, один раз в сутки
-        if (checkCount == 1) {
-            scheduleOneTime(hour, minute, 24); // 24 часа
-        } else {
-            // Для остальных частот мы просто ставим интервал в часах
-            // Логика: 24 / checkCount = интервал в часах
-            int intervalHours = 24 / checkCount;
-            // Ставим периодическую задачу каждые intervalHours часов
-            PeriodicWorkRequest workRequest = new PeriodicWorkRequest.Builder(
-                    NotificationWorker.class, intervalHours, TimeUnit.HOURS)
-                    .build();
-            WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-                    "DailyPaymentCheck",
-                    ExistingPeriodicWorkPolicy.UPDATE,
-                    workRequest
-            );
-        }
-    }
-
-    // Вспомогательный метод для одиночного запуска раз в сутки
-    private void scheduleOneTime(int hour, int minute, int hours) {
         Calendar now = Calendar.getInstance();
         Calendar target = Calendar.getInstance();
         target.set(Calendar.HOUR_OF_DAY, hour);
         target.set(Calendar.MINUTE, minute);
         target.set(Calendar.SECOND, 0);
 
-        if (target.before(now)) {
-            target.add(Calendar.DAY_OF_MONTH, 1);
-        }
+        if (target.before(now)) target.add(Calendar.DAY_OF_MONTH, 1);
 
         long delay = target.getTimeInMillis() - now.getTimeInMillis();
+
         PeriodicWorkRequest workRequest = new PeriodicWorkRequest.Builder(
                 NotificationWorker.class, 1, TimeUnit.DAYS)
                 .setInitialDelay(delay, TimeUnit.MILLISECONDS)
                 .build();
+
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-                "DailyPaymentCheck",
+                "NotificationWork",
                 ExistingPeriodicWorkPolicy.UPDATE,
                 workRequest
+        );
+    }
+
+    // Настройка ФОНОВОЙ ПРОВЕРКИ (частота, для батареи)
+    private void setupBackgroundCheckWork() {
+        int checkCount = prefs.getInt(KEY_CHECK_COUNT, 1);
+        int intervalHours = 24 / checkCount;
+
+        PeriodicWorkRequest checkRequest = new PeriodicWorkRequest.Builder(
+                BackgroundCheckWorker.class, intervalHours, TimeUnit.HOURS)
+                .build();
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                "BackgroundCheck",
+                ExistingPeriodicWorkPolicy.UPDATE,
+                checkRequest
         );
     }
 
