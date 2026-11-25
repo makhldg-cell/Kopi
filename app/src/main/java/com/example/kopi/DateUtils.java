@@ -42,10 +42,10 @@ public class DateUtils {
                 return diff / (1000 * 60 * 60 * 24); // в днях
             }
         }
-        return 999; // Если платежей нет
+        return 999;
     }
 
-    // Логика: Учесть в ближайших платежах (с переносом остатка)
+    // МЕТОД 1: Учесть в ближайших платежах (с переносом остатка на след. месяц)
     public static void applyToNearestPayments(Goal goal, AppDatabase db, double amount) {
         goal.currentAmount += amount;
         db.goalDao().update(goal);
@@ -76,9 +76,8 @@ public class DateUtils {
         }
     }
 
-    // Логика: Пересчитать график (сохраняя старые оплаты)
+    // МЕТОД 2: Пересчитать график (сохраняя старые оплаты)
     public static void recalculateFutureSchedule(Goal goal, AppDatabase db) {
-        // Удаляем только будущие платежи, которые не оплачены
         List<Payment> payments = db.goalDao().getPaymentsForGoal(goal.id);
         for (Payment p : payments) {
             if (p.status.equals("pending") || p.status.equals("partial")) {
@@ -93,8 +92,8 @@ public class DateUtils {
         List<Payment> newSchedule = new ArrayList<>();
         Calendar cal = Calendar.getInstance();
 
-        // Логика генерации дат (упрощенная)
-        cal.add(Calendar.MONTH, 1); // Начинаем со следующего месяца
+        // Начинаем со следующего месяца (или недели)
+        cal.add(Calendar.MONTH, 1); 
 
         for (int i = 0; i < paymentsNeeded; i++) {
             Payment p = new Payment();
@@ -118,5 +117,85 @@ public class DateUtils {
         for (Payment p : newSchedule) {
             db.goalDao().insertPayment(p);
         }
+    }
+
+    // ВОЗВРАЩАЕМ МЕТОДЫ ДЛЯ ЭКРАНА СОЗДАНИЯ ЦЕЛИ
+    public static String calculateEndDate(double targetAmount, double currentAmount, double paymentAmount, String frequency, int day1, int day2) {
+        double remaining = targetAmount - currentAmount;
+        if (remaining <= 0) return "Цель достигнута";
+        if (paymentAmount <= 0) return "Укажите сумму взноса";
+
+        int paymentsNeeded = (int) Math.ceil(remaining / paymentAmount);
+        Calendar cal = Calendar.getInstance();
+        
+        if (frequency.equals("Два раза в месяц")) {
+            cal.add(Calendar.MONTH, paymentsNeeded / 2);
+            cal.add(Calendar.DAY_OF_YEAR, (paymentsNeeded % 2) * 15);
+        } else if (frequency.equals("Раз в неделю")) {
+            cal.add(Calendar.WEEK_OF_YEAR, paymentsNeeded);
+        } else {
+            cal.add(Calendar.MONTH, paymentsNeeded);
+        }
+        return formatDate(cal.getTime());
+    }
+
+    public static void generateSchedule(Goal goal, AppDatabase db) {
+        List<Payment> schedule = new ArrayList<>();
+        Calendar cal = Calendar.getInstance();
+        double remaining = goal.targetAmount - goal.currentAmount;
+        int paymentsNeeded = (int) Math.ceil(remaining / goal.paymentAmount);
+
+        if (goal.frequency.equals("Раз в неделю")) {
+            cal.set(Calendar.DAY_OF_WEEK, goal.dayOfWeek);
+            if (cal.getTimeInMillis() < System.currentTimeMillis()) cal.add(Calendar.WEEK_OF_YEAR, 1);
+            for (int i = 0; i < paymentsNeeded; i++) {
+                schedule.add(createPayment(goal, cal.getTime()));
+                cal.add(Calendar.WEEK_OF_YEAR, 1);
+            }
+        } else if (goal.frequency.equals("Раз в месяц")) {
+            cal.set(Calendar.DAY_OF_MONTH, goal.dayOfMonth1);
+            if (cal.getTimeInMillis() < System.currentTimeMillis()) cal.add(Calendar.MONTH, 1);
+            for (int i = 0; i < paymentsNeeded; i++) {
+                schedule.add(createPayment(goal, cal.getTime()));
+                cal.add(Calendar.MONTH, 1);
+            }
+        } else if (goal.frequency.equals("Два раза в месяц")) {
+            int d1 = Math.min(goal.dayOfMonth1, goal.dayOfMonth2);
+            int d2 = Math.max(goal.dayOfMonth1, goal.dayOfMonth2);
+            
+            Calendar temp = (Calendar) cal.clone();
+            temp.set(Calendar.DAY_OF_MONTH, d1);
+            if (temp.getTimeInMillis() < System.currentTimeMillis()) {
+                temp.set(Calendar.DAY_OF_MONTH, d2);
+                if (temp.getTimeInMillis() < System.currentTimeMillis()) {
+                    temp.add(Calendar.MONTH, 1);
+                    temp.set(Calendar.DAY_OF_MONTH, d1);
+                }
+            }
+            for (int i = 0; i < paymentsNeeded; i++) {
+                schedule.add(createPayment(goal, temp.getTime()));
+                if (temp.get(Calendar.DAY_OF_MONTH) == d1) {
+                    temp.set(Calendar.DAY_OF_MONTH, d2);
+                } else {
+                    temp.add(Calendar.MONTH, 1);
+                    temp.set(Calendar.DAY_OF_MONTH, d1);
+                }
+            }
+        }
+
+        Collections.sort(schedule, (p1, p2) -> parseDate(p1.date).compareTo(parseDate(p2.date)));
+        for (Payment p : schedule) {
+            db.goalDao().insertPayment(p);
+        }
+    }
+
+    private static Payment createPayment(Goal goal, Date date) {
+        Payment p = new Payment();
+        p.goalId = goal.id;
+        p.amount = goal.paymentAmount;
+        p.remainingAmount = goal.paymentAmount;
+        p.status = "pending";
+        p.date = formatDate(date);
+        return p;
     }
 }
