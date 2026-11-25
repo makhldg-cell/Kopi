@@ -11,24 +11,24 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:layout_marginBottom="16dp">
-        
+
         <TextView
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
             android:text="Мои цели"
             android:textSize="24sp"
-            android:textStyle="bold"
-            android:textColor="?android:attr/textColorPrimary"/>
+            android:textStyle="bold"/>
 
-        <TextView
+        <Button
             android:id="@+id/btnSettings"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="⚙️"
-            android:textSize="28sp"
-            android:padding="8dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"/>
+            android:textSize="24sp"
+            android:background="?android:attr/selectableItemBackground"
+            android:minWidth="0dp"
+            android:minHeight="0dp"/>
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
@@ -41,7 +41,6 @@
         android:id="@+id/btnAddGoal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Добавить новую цель"
-        android:layout_marginTop="16dp"/>
+        android:text="Добавить новую цель"/>
 
 </LinearLayout>
