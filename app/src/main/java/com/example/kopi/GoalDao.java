@@ -29,6 +29,10 @@ public interface GoalDao {
     @Insert
     void insertPayment(Payment payment);
 
+    // ВОТ ЭТОГО НЕ ХВАТАЛО! Метод для обновления платежа.
+    @Update
+    void updatePayment(Payment payment);
+
     @Query("SELECT * FROM payments WHERE goalId = :goalId ORDER BY id ASC")
     List<Payment> getPaymentsForGoal(int goalId);
 }
