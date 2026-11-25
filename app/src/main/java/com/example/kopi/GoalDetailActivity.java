@@ -1,6 +1,5 @@
 package com.example.kopi;
 
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -70,6 +69,7 @@ public class GoalDetailActivity extends AppCompatActivity {
         
         updateUI();
         
+        // Загружаем платежи заново
         adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(goalId));
         recyclerView.setAdapter(adapter);
     }
@@ -149,43 +149,45 @@ public class GoalDetailActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Платеж на " + p.date);
         builder.setItems(options, (dialog, which) -> {
+            // Сначала закрываем диалог!
+            dialog.dismiss(); 
+
             if (which == 0) {
-                p.status = "paid";
-                // Логика предупреждения о несоответствии
                 if (currentGoal.paymentAmount != p.amount) {
-                    showWarningDialog("Сумма взноса не соответствует прогрессу. Вы уверены, что хотите учесть платеж?", p);
+                    // Предупреждение, если суммы не совпадают
+                    new AlertDialog.Builder(this)
+                        .setTitle("Внимание")
+                        .setMessage("Сумма взноса не соответствует прогрессу. Вы уверены?")
+                        .setPositiveButton("Да", (d, w) -> {
+                            p.status = "paid";
+                            saveAndRefresh(p);
+                        })
+                        .setNegativeButton("Отмена", null)
+                        .show();
                 } else {
-                    savePaymentAndRefresh(p);
+                    p.status = "paid";
+                    saveAndRefresh(p);
                 }
             } else if (which == 1) {
                 p.status = "missed";
-                savePaymentAndRefresh(p);
+                saveAndRefresh(p);
             } else if (which == 2) {
                 p.status = "partial";
-                savePaymentAndRefresh(p);
+                saveAndRefresh(p);
             }
         });
         
-        AlertDialog dialog = builder.create();
-        dialog.show();
+        builder.show();
     }
 
-    private void showWarningDialog(String message, Payment p) {
-        new AlertDialog.Builder(this)
-            .setTitle("Внимание")
-            .setMessage(message)
-            .setPositiveButton("Да", (dialog, which) -> {
-                savePaymentAndRefresh(p);
-            })
-            .setNegativeButton("Отмена", null)
-            .show();
-    }
-
-    private void savePaymentAndRefresh(Payment p) {
+    private void saveAndRefresh(Payment p) {
         // 1. Сохраняем в базу
         AppDatabase.getInstance(this).goalDao().insertPayment(p);
         
-        // 2. Принудительно перезапускаем активити, чтобы всё перерисовалось без вылетов
-        recreate(); 
+        // 2. Обновляем список без перезагрузки всего экрана
+        adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(goalId));
+        recyclerView.setAdapter(adapter);
+        
+        Toast.makeText(this, "Статус обновлен", Toast.LENGTH_SHORT).show();
     }
 }
