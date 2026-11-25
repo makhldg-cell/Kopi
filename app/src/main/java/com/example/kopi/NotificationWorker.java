@@ -5,6 +5,8 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.media.AudioAttributes;
+import android.net.Uri;
 import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
@@ -35,7 +37,9 @@ public class NotificationWorker extends Worker {
             List<Payment> payments = db.goalDao().getPaymentsForGoal(goal.id);
             for (Payment p : payments) {
                 if (p.date.equals(today) && p.status.equals("pending")) {
-                    showNotification(context, goal.name, p.amount, goal.currency);
+                    // Берем сумму к оплате (если это частичный платеж, то остаток)
+                    double amountToPay = p.remainingAmount > 0 ? p.remainingAmount : p.amount;
+                    showNotification(context, goal.name, amountToPay, goal.currency, goal.id);
                     break; 
                 }
             }
@@ -43,18 +47,33 @@ public class NotificationWorker extends Worker {
         return Result.success();
     }
 
-    private void showNotification(Context context, String goalName, double amount, String currency) {
-        String channelId = "kopilka_channel";
+    private void showNotification(Context context, String goalName, double amount, String currency, int goalId) {
+        // Уникальный ID канала, чтобы телефон применил новый звук
+        String channelId = "kopilka_custom_sound_channel_v1"; 
         NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // 1. Настраиваем параметры звука
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .build();
+
+            // 2. Создаем канал уведомлений
             NotificationChannel channel = new NotificationChannel(channelId, "Напоминания", NotificationManager.IMPORTANCE_HIGH);
+
+            // 3. Привязываем твой звук my_sound.mp3 из папки raw
+            Uri soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + R.raw.my_sound);
+            channel.setSound(soundUri, audioAttributes);
+            
             manager.createNotificationChannel(channel);
         }
 
-        Intent intent = new Intent(context, MainActivity.class);
+        // При нажатии на уведомление открываем экран этой цели
+        Intent intent = new Intent(context, GoalDetailActivity.class);
+        intent.putExtra("goal_id", goalId);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pendingIntent = PendingIntent.getActivity(context, goalId, intent, PendingIntent.FLAG_IMMUTABLE);
 
         String text = "Сегодня необходимо отложить " + DateUtils.formatMoney(amount) + " " + currency + " на цель «" + goalName + "»";
 
@@ -67,6 +86,6 @@ public class NotificationWorker extends Worker {
             .setContentIntent(pendingIntent)
             .setAutoCancel(true);
 
-        manager.notify(1, builder.build());
+        manager.notify(goalId, builder.build());
     }
 }
