@@ -30,6 +30,21 @@ public class DateUtils {
         }
     }
 
+    // ВОТ ОН, ТОТ САМЫЙ ПРОПУЩЕННЫЙ МЕТОД
+    public static long daysUntilNextPayment(int goalId, AppDatabase db) {
+        List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
+        Collections.sort(payments, (p1, p2) -> parseDate(p1.date).compareTo(parseDate(p2.date)));
+        
+        long today = System.currentTimeMillis();
+        for (Payment p : payments) {
+            if (!p.status.equals("paid") && !p.status.equals("missed")) {
+                long diff = parseDate(p.date).getTime() - today;
+                return diff / (1000 * 60 * 60 * 24); // возвращаем дни
+            }
+        }
+        return 999; // Если платежей нет
+    }
+
     // Безопасная установка дня месяца (если 31, а дней 30 - ставит 30)
     private static void setDayOfMonthSafe(Calendar cal, int day) {
         int maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
