@@ -18,15 +18,17 @@
             android:layout_height="wrap_content"
             android:text="Мои цели"
             android:textSize="24sp"
-            android:textStyle="bold"/>
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"/>
 
-        <Button
+        <TextView
             android:id="@+id/btnSettings"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="⚙️ Настройки"
-            android:background="?android:attr/selectableItemBackground"
-            android:textSize="16sp"/>
+            android:text="⚙️"
+            android:textSize="28sp"
+            android:padding="8dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"/>
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
