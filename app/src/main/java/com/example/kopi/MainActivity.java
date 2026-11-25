@@ -11,11 +11,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.work.ExistingPeriodicWorkPolicy;
-import androidx.work.PeriodicWorkRequest;
-import androidx.work.WorkManager;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
     private RecyclerView recyclerView;
@@ -31,15 +27,8 @@ public class MainActivity extends AppCompatActivity {
             requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 101);
         }
 
-        // Настраиваем WorkManager (запускается каждые 15 минут для проверки, но уведомление покажет только в выбранное время)
-        PeriodicWorkRequest workRequest = new PeriodicWorkRequest.Builder(
-                NotificationWorker.class, 15, TimeUnit.MINUTES)
-                .build();
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-                "KopilkaNotifications",
-                ExistingPeriodicWorkPolicy.UPDATE,
-                workRequest
-        );
+        // Устанавливаем будильник при каждом запуске приложения
+        NotificationUtils.scheduleAlarm(this);
 
         db = AppDatabase.getInstance(this);
         recyclerView = findViewById(R.id.recyclerView);
@@ -52,7 +41,6 @@ public class MainActivity extends AppCompatActivity {
             startActivity(new Intent(MainActivity.this, AddGoalActivity.class));
         });
 
-        // Обработчик шестеренки
         findViewById(R.id.btnSettings).setOnClickListener(v -> {
             startActivity(new Intent(MainActivity.this, SettingsActivity.class));
         });
