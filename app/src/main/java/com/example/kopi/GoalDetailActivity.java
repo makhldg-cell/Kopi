@@ -3,6 +3,8 @@ package com.example.kopi;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -69,7 +71,6 @@ public class GoalDetailActivity extends AppCompatActivity {
         
         updateUI();
         
-        // Загружаем платежи заново
         adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(goalId));
         recyclerView.setAdapter(adapter);
     }
@@ -149,12 +150,12 @@ public class GoalDetailActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Платеж на " + p.date);
         builder.setItems(options, (dialog, which) -> {
-            // Сначала закрываем диалог!
+            // 1. Закрываем диалог
             dialog.dismiss(); 
 
+            // 2. Логика выбора
             if (which == 0) {
                 if (currentGoal.paymentAmount != p.amount) {
-                    // Предупреждение, если суммы не совпадают
                     new AlertDialog.Builder(this)
                         .setTitle("Внимание")
                         .setMessage("Сумма взноса не соответствует прогрессу. Вы уверены?")
@@ -181,13 +182,10 @@ public class GoalDetailActivity extends AppCompatActivity {
     }
 
     private void saveAndRefresh(Payment p) {
-        // 1. Сохраняем в базу
+        // Сохраняем в базу
         AppDatabase.getInstance(this).goalDao().insertPayment(p);
         
-        // 2. Обновляем список без перезагрузки всего экрана
-        adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(goalId));
-        recyclerView.setAdapter(adapter);
-        
-        Toast.makeText(this, "Статус обновлен", Toast.LENGTH_SHORT).show();
+        // Магия: ждем 200 миллисекунд, чтобы диалоговое окно 100% закрылось, и перезагружаем экран
+        new Handler(Looper.getMainLooper()).postDelayed(this::recreate, 200);
     }
-}
+                }
