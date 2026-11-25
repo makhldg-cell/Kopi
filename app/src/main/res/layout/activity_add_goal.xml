@@ -13,12 +13,29 @@
         
         <Spinner android:id="@+id/spinnerCurrency" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"/>
         
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Частота взносов:" android:textStyle="bold" android:layout_marginTop="16dp"/>
-        <Spinner android:id="@+id/spinnerFrequency" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"/>
+        <!-- ЯВНОЕ ВЫДЕЛЕНИЕ ЧАСТОТЫ -->
+        <TextView 
+            android:layout_width="wrap_content" 
+            android:layout_height="wrap_content" 
+            android:text="Частота взносов (нажмите, чтобы изменить):" 
+            android:textStyle="bold" 
+            android:textColor="#1976D2"
+            android:layout_marginTop="16dp"/>
+            
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_spinner_border"
+            android:layout_marginTop="4dp">
+            <Spinner 
+                android:id="@+id/spinnerFrequency" 
+                android:layout_width="match_parent" 
+                android:layout_height="50dp" 
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"/>
+        </FrameLayout>
         
-        <!-- Поля ввода вместо выпадающих списков -->
         <EditText android:id="@+id/etDayOfWeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="День недели (1-7, где 1-Пн)" android:inputType="number" android:layout_marginTop="8dp" android:visibility="gone"/>
-        
         <EditText android:id="@+id/etDayOfMonth1" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Число месяца (1-31)" android:inputType="number" android:layout_marginTop="8dp" android:visibility="gone"/>
         <EditText android:id="@+id/etDayOfMonth2" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Второе число месяца (1-31)" android:inputType="number" android:layout_marginTop="8dp" android:visibility="gone"/>
         
