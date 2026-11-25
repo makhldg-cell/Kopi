@@ -30,6 +30,27 @@ public class DateUtils {
         }
     }
 
+    // ВОТ ЭТОТ МЕТОД МЫ СЛУЧАЙНО УДАЛИЛИ! Он нужен для прогноза на экране создания.
+    public static String calculateEndDate(double targetAmount, double currentAmount, double paymentAmount, String frequency, int day1, int day2) {
+        double remaining = targetAmount - currentAmount;
+        if (remaining <= 0) return "Цель достигнута";
+        if (paymentAmount <= 0) return "Укажите сумму взноса";
+
+        int paymentsNeeded = (int) Math.ceil(remaining / paymentAmount);
+        Calendar cal = Calendar.getInstance();
+        
+        if (frequency.equals("Два раза в месяц")) {
+            cal.add(Calendar.MONTH, paymentsNeeded / 2);
+            cal.add(Calendar.DAY_OF_YEAR, (paymentsNeeded % 2) * 15);
+        } else if (frequency.equals("Раз в неделю")) {
+            cal.add(Calendar.WEEK_OF_YEAR, paymentsNeeded);
+        } else {
+            cal.add(Calendar.MONTH, paymentsNeeded);
+        }
+        return formatDate(cal.getTime());
+    }
+
+    // Логика пересчета графика
     public static void updateScheduleBasedOnProgress(Goal goal, AppDatabase db) {
         List<Payment> payments = db.goalDao().getPaymentsForGoal(goal.id);
         Collections.sort(payments, (p1, p2) -> parseDate(p1.date).compareTo(parseDate(p2.date)));
@@ -54,12 +75,12 @@ public class DateUtils {
 
         if (goal.currentAmount >= goal.targetAmount) {
             for (int i = paymentIndex; i < payments.size(); i++) {
-                // Передаем ID платежа, а не объект
                 db.goalDao().deletePayment(payments.get(i).id);
             }
         }
     }
 
+    // Начальная генерация графика
     public static void generateSchedule(Goal goal, AppDatabase db) {
         List<Payment> schedule = new ArrayList<>();
         Calendar cal = Calendar.getInstance();
