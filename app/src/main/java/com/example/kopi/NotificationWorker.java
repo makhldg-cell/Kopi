@@ -56,14 +56,13 @@ public class NotificationWorker extends Worker {
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
 
-        // Строгий текст без эмодзи
         String text = "Сегодня необходимо отложить " + DateUtils.formatMoney(amount) + " " + currency + " на цель «" + goalName + "»";
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_rocket) // Иконка ракеты в уведомлении
+            .setSmallIcon(R.drawable.ic_rocket)
             .setContentTitle("Копилка")
             .setContentText(text)
-            .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+            .setStyle(new NotificationCompat.Builder(context, channelId).setStyle(new NotificationCompat.BigTextStyle().bigText(text))) // Оставим просто текст
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true);
