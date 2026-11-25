@@ -58,12 +58,11 @@ public class GoalDetailActivity extends AppCompatActivity {
             try {
                 double addSum = Double.parseDouble(etAddAmount.getText().toString());
                 if (addSum > 0) {
-                    // Проверяем, больше ли сумма, чем плановый взнос
-                    if (addSum >= currentGoal.paymentAmount) {
+                    // Вопрос вылезает, если сумма >= плана ИЛИ до платежа > 2 дней
+                    if (addSum >= currentGoal.paymentAmount || DateUtils.daysUntilNextPayment(goalId, db) > 2) {
                         showDistributionDialog(addSum);
                     } else {
-                        // Если меньше — просто прибавляем в копилку
-                        applyAmount(addSum, false);
+                        applyAmount(addSum, true); // По умолчанию в платеж
                     }
                 }
             } catch (Exception e) {
@@ -73,34 +72,16 @@ public class GoalDetailActivity extends AppCompatActivity {
     }
 
     private void showDistributionDialog(double amount) {
-        // Ищем ближайший неоплаченный платеж и считаем дни до него
-        long daysUntilNext = DateUtils.daysUntilNextPayment(goalId, db);
-
-        String[] options;
-        if (daysUntilNext > 2) {
-            // Если до платежа больше 2 дней
-            options = new String[]{
-                "Учесть в ближайшем платеже",
-                "Добавить в копилку и пересчитать график"
-            };
-        } else {
-            // Если платеж уже близко
-            options = new String[]{
-                "Учесть в текущем платеже (остаток перенести на следующий)",
-                "Добавить в копилку и пересчитать график"
-            };
-        }
+        String[] options = {
+            "Учесть в ближайшем платеже (остаток перенести)",
+            "Добавить в копилку и пересчитать график"
+        };
 
         new AlertDialog.Builder(this)
             .setTitle("Куда учесть " + DateUtils.formatMoney(amount) + " " + currentGoal.currency + "?")
             .setItems(options, (dialog, which) -> {
-                if (which == 0) {
-                    // Учесть в платежах (с переносом остатка)
-                    applyAmount(amount, true);
-                } else {
-                    // Пересчитать график (добавить в общий котел)
-                    applyAmount(amount, false);
-                }
+                if (which == 0) applyAmount(amount, true);
+                else applyAmount(amount, false);
             })
             .setNegativeButton("Отмена", null)
             .show();
@@ -109,8 +90,10 @@ public class GoalDetailActivity extends AppCompatActivity {
     private void applyAmount(double amount, boolean applyToPayments) {
         executor.execute(() -> {
             if (applyToPayments) {
+                // Логика: 1500 -> 1000 в текущий, 500 в следующий
                 DateUtils.applyToNearestPayments(currentGoal, db, amount);
             } else {
+                // Логика: пересчет
                 currentGoal.currentAmount += amount;
                 db.goalDao().update(currentGoal);
                 DateUtils.recalculateFutureSchedule(currentGoal, db);
@@ -182,7 +165,7 @@ public class GoalDetailActivity extends AppCompatActivity {
             Payment p = payments.get(position);
             holder.tvPayDate.setText(p.date);
             
-            // Логика отображения частичного взноса
+            // Показываем внесено и осталось для частичных
             if (p.status.equals("partial")) {
                 holder.tvPayAmount.setText("Внесено: " + DateUtils.formatMoney(p.amount - p.remainingAmount) + 
                                            "\nОсталось: " + DateUtils.formatMoney(p.remainingAmount));
