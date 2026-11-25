@@ -44,4 +44,44 @@
         android:text="Изменить время"
         android:layout_marginTop="8dp"/>
 
+    <!-- НОВЫЙ ПУНКТ: Частота -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="16dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="Частота проверок:"
+            android:textSize="16sp"/>
+
+        <TextView
+            android:id="@+id/tvCheckFrequency"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1 раз"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:padding="8dp"/>
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnPickFrequency"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Изменить частоту"
+        android:layout_marginTop="8dp"/>
+    
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="* Больше проверок — больше расход батареи."
+        android:textSize="12sp"
+        android:textColor="#888888"
+        android:layout_marginTop="8dp"/>
+
 </LinearLayout>
