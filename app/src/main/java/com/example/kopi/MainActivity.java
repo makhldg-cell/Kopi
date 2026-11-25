@@ -5,7 +5,6 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -32,7 +31,7 @@ public class MainActivity extends AppCompatActivity {
             requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 101);
         }
 
-        // НАСТРОЙКА УВЕДОМЛЕНИЙ (раз в 15 минут для теста, потом поменяем на 1 раз в день)
+        // Настраиваем WorkManager (запускается каждые 15 минут для проверки, но уведомление покажет только в выбранное время)
         PeriodicWorkRequest workRequest = new PeriodicWorkRequest.Builder(
                 NotificationWorker.class, 15, TimeUnit.MINUTES)
                 .build();
@@ -51,6 +50,11 @@ public class MainActivity extends AppCompatActivity {
 
         findViewById(R.id.btnAddGoal).setOnClickListener(v -> {
             startActivity(new Intent(MainActivity.this, AddGoalActivity.class));
+        });
+
+        // Обработчик шестеренки
+        findViewById(R.id.btnSettings).setOnClickListener(v -> {
+            startActivity(new Intent(MainActivity.this, SettingsActivity.class));
         });
     }
 
