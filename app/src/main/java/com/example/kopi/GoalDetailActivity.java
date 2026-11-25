@@ -1,5 +1,6 @@
 package com.example.kopi;
 
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -69,7 +70,6 @@ public class GoalDetailActivity extends AppCompatActivity {
         
         updateUI();
         
-        // Загружаем платежи заново
         adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(goalId));
         recyclerView.setAdapter(adapter);
     }
@@ -109,7 +109,6 @@ public class GoalDetailActivity extends AppCompatActivity {
             holder.tvPayDate.setText(p.date);
             holder.tvPayAmount.setText(DateUtils.formatMoney(p.amount) + " " + currentGoal.currency);
 
-            // Сбрасываем фон
             holder.itemView.setBackgroundColor(Color.TRANSPARENT);
             holder.tvPayAmount.setTypeface(null, android.graphics.Typeface.NORMAL);
 
@@ -144,29 +143,49 @@ public class GoalDetailActivity extends AppCompatActivity {
         }
     }
 
-    // Исправленный диалог (чтобы не было вылетов)
     private void showEditPaymentDialog(Payment p) {
         String[] options = {"Отметить как Внесен", "Отметить как Пропущен", "Внести частично"};
         
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Платеж на " + p.date);
         builder.setItems(options, (dialog, which) -> {
-            // 1. Меняем статус
-            if (which == 0) p.status = "paid";
-            else if (which == 1) p.status = "missed";
-            else if (which == 2) p.status = "partial";
-            
-            // 2. Сохраняем в базу
-            AppDatabase.getInstance(this).goalDao().insertPayment(p);
-            
-            // 3. Закрываем диалог и принудительно обновляем список
-            dialog.dismiss(); 
-            adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(goalId));
-            recyclerView.setAdapter(adapter);
+            if (which == 0) {
+                p.status = "paid";
+                // Логика предупреждения о несоответствии
+                if (currentGoal.paymentAmount != p.amount) {
+                    showWarningDialog("Сумма взноса не соответствует прогрессу. Вы уверены, что хотите учесть платеж?", p);
+                } else {
+                    savePaymentAndRefresh(p);
+                }
+            } else if (which == 1) {
+                p.status = "missed";
+                savePaymentAndRefresh(p);
+            } else if (which == 2) {
+                p.status = "partial";
+                savePaymentAndRefresh(p);
+            }
         });
         
-        // Вот этот параметр "dialog" избавит от вылета при закрытии!
-        AlertDialog dialog = builder.create(); 
+        AlertDialog dialog = builder.create();
         dialog.show();
+    }
+
+    private void showWarningDialog(String message, Payment p) {
+        new AlertDialog.Builder(this)
+            .setTitle("Внимание")
+            .setMessage(message)
+            .setPositiveButton("Да", (dialog, which) -> {
+                savePaymentAndRefresh(p);
+            })
+            .setNegativeButton("Отмена", null)
+            .show();
+    }
+
+    private void savePaymentAndRefresh(Payment p) {
+        // 1. Сохраняем в базу
+        AppDatabase.getInstance(this).goalDao().insertPayment(p);
+        
+        // 2. Принудительно перезапускаем активити, чтобы всё перерисовалось без вылетов
+        recreate(); 
     }
 }
