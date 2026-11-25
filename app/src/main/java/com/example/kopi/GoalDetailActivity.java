@@ -29,7 +29,6 @@ public class GoalDetailActivity extends AppCompatActivity {
     private int goalId;
     private RecyclerView recyclerView;
     
-    // Пул потоков для работы с базой данных (чтобы не было вылетов)
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -68,17 +67,14 @@ public class GoalDetailActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Загружаем данные в фоне
         loadGoalAndPayments();
     }
 
-    // Загрузка цели и платежей в фоновом потоке
     private void loadGoalAndPayments() {
         executor.execute(() -> {
             currentGoal = db.goalDao().getGoalById(goalId);
             List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
 
-            // Возвращаемся в главный поток, чтобы обновить интерфейс
             mainHandler.post(() -> {
                 if (currentGoal == null) { finish(); return; }
                 updateUI();
@@ -88,7 +84,6 @@ public class GoalDetailActivity extends AppCompatActivity {
         });
     }
 
-    // Внесение суммы в фоне
     private void addAmountToGoal(double amount) {
         executor.execute(() -> {
             currentGoal.currentAmount += amount;
@@ -97,7 +92,6 @@ public class GoalDetailActivity extends AppCompatActivity {
             List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
             
             mainHandler.post(() -> {
-                findViewById(R.id.etAddAmount).clearFocus();
                 ((EditText)findViewById(R.id.etAddAmount)).setText("");
                 updateUI();
                 adapter = new PaymentAdapter(payments);
@@ -211,12 +205,11 @@ public class GoalDetailActivity extends AppCompatActivity {
         builder.show();
     }
 
-    // Сохранение статуса платежа в фоне
     private void savePaymentInBackground(Payment p) {
         executor.execute(() -> {
-            AppDatabase.getInstance(this).goalDao().insertPayment(p);
+            // ВОТ ГЛАВНОЕ ИСПРАВЛЕНИЕ: используем updatePayment вместо insertPayment
+            AppDatabase.getInstance(this).goalDao().updatePayment(p);
             
-            // После сохранения загружаем обновленный список
             List<Payment> updatedPayments = db.goalDao().getPaymentsForGoal(goalId);
             
             mainHandler.post(() -> {
@@ -230,6 +223,6 @@ public class GoalDetailActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        executor.shutdown(); // Закрываем поток при выходе
+        executor.shutdown();
     }
 }
