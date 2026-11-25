@@ -23,7 +23,7 @@ import java.util.concurrent.Executors;
 
 public class GoalDetailActivity extends AppCompatActivity {
     private Goal currentGoal;
-    private TextView tvProgress, tvCalculation;
+    private TextView tvProgress, tvCalculation, tvUnallocatedFunds;
     private AppDatabase db;
     private PaymentAdapter adapter;
     private int goalId;
@@ -48,6 +48,7 @@ public class GoalDetailActivity extends AppCompatActivity {
 
         tvProgress = findViewById(R.id.tvDetailProgress);
         tvCalculation = findViewById(R.id.tvCalculation);
+        tvUnallocatedFunds = findViewById(R.id.tvUnallocatedFunds);
         recyclerView = findViewById(R.id.recyclerViewSchedule);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
@@ -68,12 +69,51 @@ public class GoalDetailActivity extends AppCompatActivity {
                 Toast.makeText(this, "Введите сумму", Toast.LENGTH_SHORT).show();
             }
         });
+
+        // Редактирование свободных средств
+        tvUnallocatedFunds.setOnClickListener(v -> {
+            double unallocated = getUnallocatedFunds();
+            if (unallocated <= 0) {
+                Toast.makeText(this, "Нет свободных средств", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            EditText input = new EditText(this);
+            input.setText(String.valueOf(unallocated));
+            input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            
+            new AlertDialog.Builder(this)
+                .setTitle("Свободные средства")
+                .setMessage("Измените сумму (это пересчитает график):")
+                .setView(input)
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    try {
+                        double newAmount = Double.parseDouble(input.getText().toString());
+                        double diff = newAmount - unallocated;
+                        currentGoal.currentAmount += diff;
+                        db.goalDao().update(currentGoal);
+                        DateUtils.recalculateFutureSchedule(currentGoal, db);
+                        loadGoalAndPayments();
+                    } catch (Exception e) { }
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
+        });
+    }
+
+    private double getUnallocatedFunds() {
+        List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
+        double allocated = 0;
+        for (Payment p : payments) {
+            if (p.status.equals("paid")) allocated += p.amount;
+            else if (p.status.equals("partial")) allocated += (p.amount - p.remainingAmount);
+        }
+        return currentGoal.currentAmount - allocated;
     }
 
     private void showDistributionDialog(double amount) {
         String[] options = {
-            "Учесть в ближайшем платеже (остаток перенести)",
-            "Добавить в копилку и пересчитать график"
+            "Учесть в ближайшем платеже",
+            "Добавить в копилку (свободные средства)"
         };
 
         new AlertDialog.Builder(this)
@@ -95,14 +135,9 @@ public class GoalDetailActivity extends AppCompatActivity {
                 db.goalDao().update(currentGoal);
                 DateUtils.recalculateFutureSchedule(currentGoal, db);
             }
-            
-            List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
-            
             mainHandler.post(() -> {
                 ((EditText)findViewById(R.id.etAddAmount)).setText("");
-                updateUI();
-                adapter = new PaymentAdapter(payments);
-                recyclerView.setAdapter(adapter);
+                loadGoalAndPayments();
                 Toast.makeText(this, "Сумма учтена!", Toast.LENGTH_SHORT).show();
             });
         });
@@ -121,27 +156,32 @@ public class GoalDetailActivity extends AppCompatActivity {
 
             mainHandler.post(() -> {
                 if (currentGoal == null) { finish(); return; }
-                updateUI();
+                updateUI(payments);
                 adapter = new PaymentAdapter(payments);
                 recyclerView.setAdapter(adapter);
             });
         });
     }
 
-    private void updateUI() {
+    private void updateUI(List<Payment> payments) {
         ((TextView)findViewById(R.id.tvDetailName)).setText(currentGoal.name);
         tvProgress.setText("Собрано: " + DateUtils.formatMoney(currentGoal.currentAmount) + " из " + DateUtils.formatMoney(currentGoal.targetAmount) + " " + currentGoal.currency);
         
         double remaining = currentGoal.targetAmount - currentGoal.currentAmount;
-        String calcText = "";
         if (remaining <= 0) {
-            calcText = "🎉 Цель достигнута!";
-        } else if (currentGoal.paymentAmount > 0) {
-            int paymentsNeeded = (int) Math.ceil(remaining / currentGoal.paymentAmount);
-            calcText = "Осталось: " + DateUtils.formatMoney(remaining) + " " + currentGoal.currency + "\n" +
-                       "Осталось сделать взносов: " + paymentsNeeded;
+            tvCalculation.setText("🎉 Цель достигнута!");
+        } else {
+            tvCalculation.setText("Осталось: " + DateUtils.formatMoney(remaining) + " " + currentGoal.currency);
         }
-        tvCalculation.setText(calcText);
+
+        double unallocated = getUnallocatedFunds();
+        if (unallocated > 0) {
+            tvUnallocatedFunds.setVisibility(View.VISIBLE);
+            tvUnallocatedFunds.setText("Свободные средства (вне графика): " + DateUtils.formatMoney(unallocated) + " " + currentGoal.currency + " (нажмите для изменения)");
+        } else {
+            tvUnallocatedFunds.setVisibility(View.GONE);
+        }
+        
         ((TextView)findViewById(R.id.tvDetailLink)).setText("Ссылка: " + (currentGoal.link.isEmpty() ? "нет" : currentGoal.link));
         ((TextView)findViewById(R.id.tvDetailComment)).setText("Комментарий: " + (currentGoal.comment.isEmpty() ? "нет" : currentGoal.comment));
     }
@@ -163,8 +203,7 @@ public class GoalDetailActivity extends AppCompatActivity {
             holder.tvPayDate.setText(p.date);
             
             if (p.status.equals("partial")) {
-                holder.tvPayAmount.setText("Внесено: " + DateUtils.formatMoney(p.amount - p.remainingAmount) + 
-                                           "\nОсталось: " + DateUtils.formatMoney(p.remainingAmount));
+                holder.tvPayAmount.setText("Внесено: " + DateUtils.formatMoney(p.amount - p.remainingAmount) + "\nОсталось: " + DateUtils.formatMoney(p.remainingAmount));
             } else {
                 holder.tvPayAmount.setText(DateUtils.formatMoney(p.amount) + " " + currentGoal.currency);
             }
@@ -204,6 +243,19 @@ public class GoalDetailActivity extends AppCompatActivity {
     }
 
     private void showEditPaymentDialog(Payment p) {
+        // ПРОВЕРКА СТРОГОГО РЕЖИМА
+        if (currentGoal.isStrictMode) {
+            long days = DateUtils.daysUntilNextPayment(goalId, db);
+            if (days > 0 && DateUtils.parseDate(p.date).after(new java.util.Date())) {
+                new AlertDialog.Builder(this)
+                    .setTitle("Строгий режим")
+                    .setMessage("Управление этим платежом будет доступно только в дату взноса (" + p.date + ").")
+                    .setPositiveButton("Понятно", null)
+                    .show();
+                return;
+            }
+        }
+
         List<String> optionsList = new java.util.ArrayList<>();
         
         if (p.status.equals("pending") || p.status.equals("partial")) {
@@ -218,7 +270,6 @@ public class GoalDetailActivity extends AppCompatActivity {
         }
 
         String[] options = optionsList.toArray(new String[0]);
-
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Платеж на " + p.date);
         builder.setItems(options, (dialog, which) -> {
@@ -229,7 +280,6 @@ public class GoalDetailActivity extends AppCompatActivity {
                 double amountToPay = p.status.equals("partial") ? p.remainingAmount : p.amount;
                 applyAmount(amountToPay, true);
             } else if (selected.startsWith("Отметить как Пропущен")) {
-                // Если он был оплачен, откатываем сумму
                 if (p.status.equals("paid")) {
                     currentGoal.currentAmount -= p.amount;
                     db.goalDao().update(currentGoal);
@@ -255,18 +305,11 @@ public class GoalDetailActivity extends AppCompatActivity {
     private void saveAndRecalculate(Payment p) {
         executor.execute(() -> {
             AppDatabase.getInstance(this).goalDao().updatePayment(p);
-            // Пересчитываем общую сумму и график (появление нового платежа в конце)
             DateUtils.recalculateGoalAmount(currentGoal, db);
             DateUtils.recalculateFutureSchedule(currentGoal, db);
 
-            List<Payment> updatedPayments = db.goalDao().getPaymentsForGoal(goalId);
-            Goal updatedGoal = db.goalDao().getGoalById(goalId);
-
             mainHandler.post(() -> {
-                currentGoal = updatedGoal;
-                updateUI();
-                adapter = new PaymentAdapter(updatedPayments);
-                recyclerView.setAdapter(adapter);
+                loadGoalAndPayments();
                 Toast.makeText(this, "Данные обновлены", Toast.LENGTH_SHORT).show();
             });
         });
