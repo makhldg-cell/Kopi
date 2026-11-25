@@ -48,7 +48,6 @@ public class AddGoalActivity extends AppCompatActivity {
         adapterFreq.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerFrequency.setAdapter(adapterFreq);
 
-        // Проверяем, редактируем ли мы цель
         editGoalId = getIntent().getIntExtra("edit_goal_id", -1);
         if (editGoalId != -1) {
             existingGoal = AppDatabase.getInstance(this).goalDao().getGoalById(editGoalId);
@@ -104,24 +103,33 @@ public class AddGoalActivity extends AppCompatActivity {
 
         btnSave.setOnClickListener(v -> {
             try {
+                String freq = spinnerFrequency.getSelectedItem().toString();
+                int d1 = 0, d2 = 0;
+                
+                if (freq.equals("Раз в неделю")) {
+                    d1 = Integer.parseInt(etDayOfWeek.getText().toString());
+                    if (d1 < 1 || d1 > 7) throw new Exception("День недели должен быть от 1 до 7");
+                } else if (freq.equals("Раз в месяц")) {
+                    d1 = Integer.parseInt(etDayOfMonth1.getText().toString());
+                    if (d1 < 1 || d1 > 31) throw new Exception("Число должно быть от 1 до 31");
+                } else if (freq.equals("Два раза в месяц")) {
+                    d1 = Integer.parseInt(etDayOfMonth1.getText().toString());
+                    d2 = Integer.parseInt(etDayOfMonth2.getText().toString());
+                    if (d1 < 1 || d1 > 31 || d2 < 1 || d2 > 31) throw new Exception("Числа должны быть от 1 до 31");
+                    if (d1 == d2) throw new Exception("Даты не должны совпадать!");
+                }
+
                 Goal goal = (existingGoal != null) ? existingGoal : new Goal();
                 goal.name = etName.getText().toString();
                 goal.targetAmount = Double.parseDouble(etTargetAmount.getText().toString());
                 goal.currency = spinnerCurrency.getSelectedItem().toString();
                 goal.link = etLink.getText().toString();
                 goal.comment = etComment.getText().toString();
-                goal.frequency = spinnerFrequency.getSelectedItem().toString();
+                goal.frequency = freq;
                 goal.paymentAmount = Double.parseDouble(etPaymentAmount.getText().toString());
-
-                if (goal.frequency.equals("Раз в неделю")) {
-                    goal.dayOfWeek = Integer.parseInt(etDayOfWeek.getText().toString());
-                } else if (goal.frequency.equals("Раз в месяц")) {
-                    goal.dayOfMonth1 = Integer.parseInt(etDayOfMonth1.getText().toString());
-                } else if (goal.frequency.equals("Два раза в месяц")) {
-                    goal.dayOfMonth1 = Integer.parseInt(etDayOfMonth1.getText().toString());
-                    goal.dayOfMonth2 = Integer.parseInt(etDayOfMonth2.getText().toString());
-                }
-
+                goal.dayOfMonth1 = d1;
+                goal.dayOfMonth2 = d2;
+                
                 goal.endDate = DateUtils.calculateEndDate(goal.targetAmount, goal.currentAmount, goal.paymentAmount, goal.frequency, goal.dayOfMonth1, goal.dayOfMonth2);
 
                 if (existingGoal == null) {
@@ -130,15 +138,15 @@ public class AddGoalActivity extends AppCompatActivity {
                     goal.id = (int) id;
                 } else {
                     AppDatabase.getInstance(this).goalDao().update(goal);
-                    // Очищаем старый график, так как параметры изменились
                     AppDatabase.getInstance(this).goalDao().deletePaymentsForGoal(goal.id);
                 }
                 
-                // Генерируем новый график
                 DateUtils.generateSchedule(goal, AppDatabase.getInstance(this));
                 finish();
+            } catch (NumberFormatException e) {
+                Toast.makeText(this, "Заполните числовые поля", Toast.LENGTH_SHORT).show();
             } catch (Exception e) {
-                Toast.makeText(this, "Проверьте заполнение полей", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -152,4 +160,4 @@ public class AddGoalActivity extends AppCompatActivity {
             tvCalculatedDate.setText("Прогноз завершения: " + endDate);
         } catch (Exception ignored) {}
     }
-                        }
+}
