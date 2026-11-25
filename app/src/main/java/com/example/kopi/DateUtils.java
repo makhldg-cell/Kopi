@@ -13,7 +13,6 @@ import java.util.Locale;
 public class DateUtils {
     public static final String DATE_FORMAT = "dd.MM.yyyy";
 
-    // Красивое форматирование денег (10000 -> 10 000, 10000.5 -> 10 000.5)
     public static String formatMoney(double amount) {
         DecimalFormat df = new DecimalFormat("#,##0.##");
         return df.format(amount).replace(',', ' ');
@@ -31,25 +30,47 @@ public class DateUtils {
         }
     }
 
-    public static String calculateEndDate(double targetAmount, double currentAmount, double paymentAmount, String frequency, int day1, int day2) {
-        double remaining = targetAmount - currentAmount;
-        if (remaining <= 0) return "Цель достигнута";
-        if (paymentAmount <= 0) return "Укажите сумму взноса";
-
-        int paymentsNeeded = (int) Math.ceil(remaining / paymentAmount);
-        Calendar cal = Calendar.getInstance();
+    // ТА САМАЯ ФУНКЦИЯ ПЕРЕСЧЕТА ГРАФИКА
+    public static void updateScheduleBasedOnProgress(Goal goal, AppDatabase db) {
+        // 1. Берем все платежи из базы
+        List<Payment> payments = db.goalDao().getPaymentsForGoal(goal.id);
         
-        if (frequency.equals("Два раза в месяц")) {
-            cal.add(Calendar.MONTH, paymentsNeeded / 2);
-            cal.add(Calendar.DAY_OF_YEAR, (paymentsNeeded % 2) * 15);
-        } else if (frequency.equals("Раз в неделю")) {
-            cal.add(Calendar.WEEK_OF_YEAR, paymentsNeeded);
-        } else {
-            cal.add(Calendar.MONTH, paymentsNeeded);
+        // Сортируем их по дате (чтобы шли строго по календарю)
+        Collections.sort(payments, (p1, p2) -> parseDate(p1.date).compareTo(parseDate(p2.date)));
+
+        // 2. Начинаем "раздавать" внесенные деньги
+        double moneyToDistribute = goal.currentAmount;
+        int paymentIndex = 0;
+
+        while (moneyToDistribute > 0 && paymentIndex < payments.size()) {
+            Payment p = payments.get(paymentIndex);
+            
+            if (moneyToDistribute >= p.amount) {
+                // Если денег хватает на весь платеж — закрываем его
+                p.status = "paid";
+                moneyToDistribute -= p.amount;
+            } else {
+                // Если денег меньше, чем платеж — делаем его частичным (оранжевым)
+                p.status = "partial";
+                moneyToDistribute = 0; // Деньги кончились
+            }
+            
+            // Сохраняем изменения статуса в базе
+            db.goalDao().updatePayment(p);
+            paymentIndex++;
         }
-        return formatDate(cal.getTime());
+
+        // 3. Если остались платежи после внесенных (их не коснулись) — они остаются "pending" (в ожидании).
+        // Но если цель уже достигнута (внесли больше, чем надо), мы можем удалить оставшиеся платежи.
+        if (goal.currentAmount >= goal.targetAmount) {
+            // Цель достигнута, удаляем все оставшиеся "pending" платежи
+            for (int i = paymentIndex; i < payments.size(); i++) {
+                db.goalDao().deletePayment(payments.get(i));
+            }
+        }
     }
 
+    // Начальная генерация графика (используется при создании цели)
     public static void generateSchedule(Goal goal, AppDatabase db) {
         List<Payment> schedule = new ArrayList<>();
         Calendar cal = Calendar.getInstance();
