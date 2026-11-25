@@ -11,7 +11,12 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
+import java.util.Calendar;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
     private RecyclerView recyclerView;
@@ -27,8 +32,7 @@ public class MainActivity extends AppCompatActivity {
             requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 101);
         }
 
-        // Устанавливаем будильник при каждом запуске приложения
-        NotificationUtils.scheduleAlarm(this);
+        setupNotifications();
 
         db = AppDatabase.getInstance(this);
         recyclerView = findViewById(R.id.recyclerView);
@@ -40,10 +44,20 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.btnAddGoal).setOnClickListener(v -> {
             startActivity(new Intent(MainActivity.this, AddGoalActivity.class));
         });
+    }
 
-        findViewById(R.id.btnSettings).setOnClickListener(v -> {
-            startActivity(new Intent(MainActivity.this, SettingsActivity.class));
-        });
+    private void setupNotifications() {
+        // ВНИМАНИЕ! Сейчас стоит 15 минут для теста.
+        // Потом поменяем на: new PeriodicWorkRequest.Builder(NotificationWorker.class, 1, TimeUnit.DAYS)
+        PeriodicWorkRequest workRequest = new PeriodicWorkRequest.Builder(
+                NotificationWorker.class, 15, TimeUnit.MINUTES) // <-- ТЕСТОВЫЙ РЕЖИМ
+                .build();
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                "PaymentCheck",
+                ExistingPeriodicWorkPolicy.UPDATE,
+                workRequest
+        );
     }
 
     @Override
@@ -67,7 +81,6 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onBindViewHolder(@NonNull GoalViewHolder holder, int position) {
             Goal goal = goals.get(position);
-            
             String nameText = goal.name;
             if (goal.isFrozen) {
                 nameText = "❄️ " + nameText;
@@ -108,7 +121,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void showGoalOptions(Goal goal) {
         String freezeText = goal.isFrozen ? "Разморозить цель" : "Заморозить цель";
-        
         new AlertDialog.Builder(this)
             .setTitle(goal.name)
             .setItems(new String[]{freezeText, "Удалить цель"}, (dialog, which) -> {
@@ -119,7 +131,7 @@ public class MainActivity extends AppCompatActivity {
                 } else if (which == 1) {
                     new AlertDialog.Builder(this)
                         .setTitle("Удалить цель?")
-                        .setMessage("Это действие нельзя отменить. Вся история платежей будет удалена.")
+                        .setMessage("Все данные будут удалены.")
                         .setPositiveButton("Удалить", (d, w) -> {
                             db.goalDao().deletePaymentsForGoal(goal.id);
                             db.goalDao().deleteGoal(goal.id);
