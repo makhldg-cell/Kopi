@@ -62,7 +62,7 @@ public class NotificationWorker extends Worker {
             .setSmallIcon(R.drawable.ic_rocket)
             .setContentTitle("Копилка")
             .setContentText(text)
-            .setStyle(new NotificationCompat.Builder(context, channelId).setStyle(new NotificationCompat.BigTextStyle().bigText(text))) // Оставим просто текст
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(text)) // ТУТ БЫЛА ОШИБКА, ТЕПЕРЬ ИСПРАВЛЕНО
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true);
