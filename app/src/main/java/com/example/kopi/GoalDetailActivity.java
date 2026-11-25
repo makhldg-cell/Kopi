@@ -23,6 +23,7 @@ public class GoalDetailActivity extends AppCompatActivity {
     private AppDatabase db;
     private PaymentAdapter adapter;
     private int goalId;
+    private RecyclerView recyclerView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,7 +33,6 @@ public class GoalDetailActivity extends AppCompatActivity {
         db = AppDatabase.getInstance(this);
         goalId = getIntent().getIntExtra("goal_id", -1);
         
-        // Кнопка редактирования
         findViewById(R.id.btnEditGoal).setOnClickListener(v -> {
             Intent intent = new Intent(this, AddGoalActivity.class);
             intent.putExtra("edit_goal_id", goalId);
@@ -41,8 +41,7 @@ public class GoalDetailActivity extends AppCompatActivity {
 
         tvProgress = findViewById(R.id.tvDetailProgress);
         tvCalculation = findViewById(R.id.tvCalculation);
-
-        RecyclerView recyclerView = findViewById(R.id.recyclerViewSchedule);
+        recyclerView = findViewById(R.id.recyclerViewSchedule);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
         EditText etAddAmount = findViewById(R.id.etAddAmount);
@@ -70,14 +69,14 @@ public class GoalDetailActivity extends AppCompatActivity {
         
         updateUI();
         
-        RecyclerView recyclerView = findViewById(R.id.recyclerViewSchedule);
+        // Загружаем платежи заново
         adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(goalId));
         recyclerView.setAdapter(adapter);
     }
 
     private void updateUI() {
         ((TextView)findViewById(R.id.tvDetailName)).setText(currentGoal.name);
-        tvProgress.setText("Собрано: " + currentGoal.currentAmount + " из " + currentGoal.targetAmount + " " + currentGoal.currency);
+        tvProgress.setText("Собрано: " + DateUtils.formatMoney(currentGoal.currentAmount) + " из " + DateUtils.formatMoney(currentGoal.targetAmount) + " " + currentGoal.currency);
         
         double remaining = currentGoal.targetAmount - currentGoal.currentAmount;
         String calcText = "";
@@ -85,8 +84,8 @@ public class GoalDetailActivity extends AppCompatActivity {
             calcText = "🎉 Цель достигнута!";
         } else if (currentGoal.paymentAmount > 0) {
             int paymentsNeeded = (int) Math.ceil(remaining / currentGoal.paymentAmount);
-            calcText = "Осталось: " + remaining + " " + currentGoal.currency + "\n" +
-                       "При взносе по " + currentGoal.paymentAmount + " нужно сделать: " + paymentsNeeded + " взносов.";
+            calcText = "Осталось: " + DateUtils.formatMoney(remaining) + " " + currentGoal.currency + "\n" +
+                       "При взносе по " + DateUtils.formatMoney(currentGoal.paymentAmount) + " нужно сделать: " + paymentsNeeded + " взносов.";
         }
         tvCalculation.setText(calcText);
         ((TextView)findViewById(R.id.tvDetailLink)).setText("Ссылка: " + (currentGoal.link.isEmpty() ? "нет" : currentGoal.link));
@@ -108,7 +107,11 @@ public class GoalDetailActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull PayViewHolder holder, int position) {
             Payment p = payments.get(position);
             holder.tvPayDate.setText(p.date);
-            holder.tvPayAmount.setText(p.amount + " " + currentGoal.currency);
+            holder.tvPayAmount.setText(DateUtils.formatMoney(p.amount) + " " + currentGoal.currency);
+
+            // Сбрасываем фон
+            holder.itemView.setBackgroundColor(Color.TRANSPARENT);
+            holder.tvPayAmount.setTypeface(null, android.graphics.Typeface.NORMAL);
 
             if (p.status.equals("paid")) {
                 holder.itemView.setBackgroundColor(Color.parseColor("#C8E6C9"));
@@ -118,9 +121,9 @@ public class GoalDetailActivity extends AppCompatActivity {
                 holder.tvPayStatus.setText("❌");
             } else if (p.status.equals("partial")) {
                 holder.itemView.setBackgroundColor(Color.parseColor("#FFE0B2"));
+                holder.tvPayAmount.setTypeface(null, android.graphics.Typeface.BOLD);
                 holder.tvPayStatus.setText("⚠️");
             } else {
-                holder.itemView.setBackgroundColor(Color.TRANSPARENT);
                 holder.tvPayStatus.setText("⏳");
             }
 
@@ -141,19 +144,29 @@ public class GoalDetailActivity extends AppCompatActivity {
         }
     }
 
+    // Исправленный диалог (чтобы не было вылетов)
     private void showEditPaymentDialog(Payment p) {
         String[] options = {"Отметить как Внесен", "Отметить как Пропущен", "Внести частично"};
-        new AlertDialog.Builder(this)
-            .setTitle("Платеж на " + p.date)
-            .setItems(options, (dialog, which) -> {
-                if (which == 0) p.status = "paid";
-                else if (which == 1) p.status = "missed";
-                else if (which == 2) p.status = "partial";
-                
-                AppDatabase.getInstance(this).goalDao().insertPayment(p);
-                adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(currentGoal.id));
-                ((RecyclerView)findViewById(R.id.recyclerViewSchedule)).setAdapter(adapter);
-            })
-            .show();
+        
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Платеж на " + p.date);
+        builder.setItems(options, (dialog, which) -> {
+            // 1. Меняем статус
+            if (which == 0) p.status = "paid";
+            else if (which == 1) p.status = "missed";
+            else if (which == 2) p.status = "partial";
+            
+            // 2. Сохраняем в базу
+            AppDatabase.getInstance(this).goalDao().insertPayment(p);
+            
+            // 3. Закрываем диалог и принудительно обновляем список
+            dialog.dismiss(); 
+            adapter = new PaymentAdapter(db.goalDao().getPaymentsForGoal(goalId));
+            recyclerView.setAdapter(adapter);
+        });
+        
+        // Вот этот параметр "dialog" избавит от вылета при закрытии!
+        AlertDialog dialog = builder.create(); 
+        dialog.show();
     }
 }
