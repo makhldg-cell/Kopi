@@ -30,39 +30,49 @@ public class DateUtils {
         }
     }
 
-    // ФУНКЦИЯ ДЛЯ ВАРИАНТА "УЧЕСТЬ В ПЛАТЕЖАХ"
+    // ВОЗВРАЩАЕМ ФУНКЦИЮ РАСЧЕТА ДАТЫ ОКОНЧАНИЯ
+    public static String calculateEndDate(double targetAmount, double currentAmount, double paymentAmount, String frequency, int day1, int day2) {
+        double remaining = targetAmount - currentAmount;
+        if (remaining <= 0) return "Цель достигнута";
+        if (paymentAmount <= 0) return "Укажите сумму взноса";
+
+        int paymentsNeeded = (int) Math.ceil(remaining / paymentAmount);
+        Calendar cal = Calendar.getInstance();
+        
+        if (frequency.equals("Два раза в месяц")) {
+            cal.add(Calendar.MONTH, paymentsNeeded / 2);
+            cal.add(Calendar.DAY_OF_YEAR, (paymentsNeeded % 2) * 15);
+        } else if (frequency.equals("Раз в неделю")) {
+            cal.add(Calendar.WEEK_OF_YEAR, paymentsNeeded);
+        } else {
+            cal.add(Calendar.MONTH, paymentsNeeded);
+        }
+        return formatDate(cal.getTime());
+    }
+
     public static void shortenSchedule(Goal goal, AppDatabase db, double extraAmount) {
-        // 1. Получаем все платежи
         List<Payment> payments = db.goalDao().getPaymentsForGoal(goal.id);
         Collections.sort(payments, (p1, p2) -> parseDate(p1.date).compareTo(parseDate(p2.date)));
 
         double moneyToUse = extraAmount;
 
-        // 2. Проходимся по платежам и закрываем их, пока хватает денег
         for (Payment p : payments) {
             if (moneyToUse <= 0) break;
-            
-            // Если это уже оплаченный платеж — пропускаем
             if (p.status.equals("paid")) continue; 
 
             if (moneyToUse >= p.amount) {
-                // Если денег хватает на весь платеж — закрываем его
                 p.status = "paid";
                 moneyToUse -= p.amount;
                 db.goalDao().updatePayment(p);
             } else {
-                // Если денег не хватает — делаем частичный платеж
                 p.status = "partial";
-                moneyToUse = 0; // Остаток денег ушел сюда
+                moneyToUse = 0; 
                 db.goalDao().updatePayment(p);
                 break;
             }
         }
-
-        // 3. Если сумма внесена, и деньги остались, а платежи кончились — просто игнорируем остаток (он пойдет в общий прогресс)
     }
 
-    // Старая функция (для "пересчитать график")
     public static void recalculateSchedule(Goal goal, AppDatabase db) {
         db.goalDao().deletePaymentsForGoal(goal.id);
         double remaining = goal.targetAmount - goal.currentAmount;
@@ -114,6 +124,11 @@ public class DateUtils {
         for (Payment p : newSchedule) {
             db.goalDao().insertPayment(p);
         }
+    }
+
+    // ВОЗВРАЩАЕМ ФУНКЦИЮ ГЕНЕРАЦИИ ГРАФИКА
+    public static void generateSchedule(Goal goal, AppDatabase db) {
+        recalculateSchedule(goal, db);
     }
 
     private static Payment createPayment(Goal goal, Date date) {
