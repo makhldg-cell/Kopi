@@ -12,13 +12,15 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textSize="18sp"
-        android:textStyle="bold"/>
+        android:textStyle="bold"
+        android:textColor="?android:attr/textColorPrimary"/>
 
     <TextView
         android:id="@+id/tvGoalAmount"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textSize="16sp"
+        android:textColor="?android:attr/textColorPrimary"
         android:layout_marginTop="4dp"/>
         
     <TextView
@@ -26,5 +28,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textSize="14sp"
+        android:textColor="?android:attr/textColorSecondary"
         android:layout_marginTop="4dp"/>
 </LinearLayout>
