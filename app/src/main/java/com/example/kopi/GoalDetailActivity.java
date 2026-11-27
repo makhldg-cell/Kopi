@@ -28,6 +28,8 @@ public class GoalDetailActivity extends AppCompatActivity {
     private PaymentAdapter adapter;
     private int goalId;
     private RecyclerView recyclerView;
+    private Button btnEditGoal, btnAddAmount;
+    private EditText etAddAmount;
     
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -40,22 +42,27 @@ public class GoalDetailActivity extends AppCompatActivity {
         db = AppDatabase.getInstance(this);
         goalId = getIntent().getIntExtra("goal_id", -1);
         
-        findViewById(R.id.btnEditGoal).setOnClickListener(v -> {
-            Intent intent = new Intent(this, AddGoalActivity.class);
-            intent.putExtra("edit_goal_id", goalId);
-            startActivity(intent);
-        });
-
+        btnEditGoal = findViewById(R.id.btnEditGoal);
+        btnAddAmount = findViewById(R.id.btnAddAmount);
+        etAddAmount = findViewById(R.id.etAddAmount);
         tvProgress = findViewById(R.id.tvDetailProgress);
         tvCalculation = findViewById(R.id.tvCalculation);
         tvUnallocatedFunds = findViewById(R.id.tvUnallocatedFunds);
         recyclerView = findViewById(R.id.recyclerViewSchedule);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        EditText etAddAmount = findViewById(R.id.etAddAmount);
-        Button btnAddAmount = findViewById(R.id.btnAddAmount);
+        btnEditGoal.setOnClickListener(v -> {
+            if (currentGoal.isFrozen) {
+                Toast.makeText(this, "Цель заморожена. Разморозьте её для редактирования.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Intent intent = new Intent(this, AddGoalActivity.class);
+            intent.putExtra("edit_goal_id", goalId);
+            startActivity(intent);
+        });
 
         btnAddAmount.setOnClickListener(v -> {
+            if (currentGoal.isFrozen) return;
             try {
                 double addSum = Double.parseDouble(etAddAmount.getText().toString());
                 if (addSum > 0) {
@@ -71,6 +78,7 @@ public class GoalDetailActivity extends AppCompatActivity {
         });
 
         tvUnallocatedFunds.setOnClickListener(v -> {
+            if (currentGoal.isFrozen) return;
             double unallocated = getUnallocatedFunds();
             if (unallocated <= 0) {
                 Toast.makeText(this, "Нет свободных средств", Toast.LENGTH_SHORT).show();
@@ -135,7 +143,7 @@ public class GoalDetailActivity extends AppCompatActivity {
                 DateUtils.recalculateFutureSchedule(currentGoal, db);
             }
             mainHandler.post(() -> {
-                ((EditText)findViewById(R.id.etAddAmount)).setText("");
+                etAddAmount.setText("");
                 loadGoalAndPayments();
                 Toast.makeText(this, "Сумма учтена!", Toast.LENGTH_SHORT).show();
             });
@@ -155,6 +163,7 @@ public class GoalDetailActivity extends AppCompatActivity {
 
             mainHandler.post(() -> {
                 if (currentGoal == null) { finish(); return; }
+                updateUIBasedOnFreezeStatus();
                 updateUI(payments);
                 adapter = new PaymentAdapter(payments);
                 recyclerView.setAdapter(adapter);
@@ -162,8 +171,33 @@ public class GoalDetailActivity extends AppCompatActivity {
         });
     }
 
+    private void updateUIBasedOnFreezeStatus() {
+        if (currentGoal.isFrozen) {
+            btnEditGoal.setEnabled(false);
+            btnEditGoal.setAlpha(0.5f);
+            btnEditGoal.setText("Заморожена");
+            
+            btnAddAmount.setEnabled(false);
+            btnAddAmount.setAlpha(0.5f);
+            etAddAmount.setEnabled(false);
+            etAddAmount.setHint("Цель заморожена");
+        } else {
+            btnEditGoal.setEnabled(true);
+            btnEditGoal.setAlpha(1f);
+            btnEditGoal.setText("Ред.");
+            
+            btnAddAmount.setEnabled(true);
+            btnAddAmount.setAlpha(1f);
+            etAddAmount.setEnabled(true);
+            etAddAmount.setHint("Сумма для пополнения");
+        }
+    }
+
     private void updateUI(List<Payment> payments) {
-        ((TextView)findViewById(R.id.tvDetailName)).setText(currentGoal.name);
+        String nameText = currentGoal.name;
+        if (currentGoal.isFrozen) nameText = "❄️ " + nameText;
+        ((TextView)findViewById(R.id.tvDetailName)).setText(nameText);
+        
         tvProgress.setText("Собрано: " + DateUtils.formatMoney(currentGoal.currentAmount) + " из " + DateUtils.formatMoney(currentGoal.targetAmount) + " " + currentGoal.currency);
         
         double remaining = currentGoal.targetAmount - currentGoal.currentAmount;
@@ -174,9 +208,8 @@ public class GoalDetailActivity extends AppCompatActivity {
         }
 
         double unallocated = getUnallocatedFunds();
-        if (unallocated > 0) {
+        if (unallocated > 0 && !currentGoal.isFrozen) {
             tvUnallocatedFunds.setVisibility(View.VISIBLE);
-            // ИСПОЛЬЗУЕМ formatMoney ДЛЯ КРАСИВОГО ВЫВОДА
             tvUnallocatedFunds.setText("Свободные средства (вне графика): " + DateUtils.formatMoney(unallocated) + " " + currentGoal.currency + " (нажмите для изменения)");
         } else {
             tvUnallocatedFunds.setVisibility(View.GONE);
@@ -243,6 +276,11 @@ public class GoalDetailActivity extends AppCompatActivity {
     }
 
     private void showEditPaymentDialog(Payment p) {
+        if (currentGoal.isFrozen) {
+            Toast.makeText(this, "Цель заморожена. Управление графиком недоступно.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         if (currentGoal.isStrictMode) {
             long days = DateUtils.daysUntilNextPayment(goalId, db);
             if (days > 0 && DateUtils.parseDate(p.date).after(new java.util.Date())) {
@@ -280,7 +318,6 @@ public class GoalDetailActivity extends AppCompatActivity {
                 applyAmount(amountToPay, true);
             } else if (selected.startsWith("Отметить как Пропущен")) {
                 if (p.status.equals("paid")) {
-                    // ВАЖНО: Если отменяем оплаченный, вычитаем его из общего прогресса
                     currentGoal.currentAmount -= p.amount;
                     db.goalDao().update(currentGoal);
                 }
@@ -292,7 +329,6 @@ public class GoalDetailActivity extends AppCompatActivity {
                 p.remainingAmount = p.amount;
                 saveAndRecalculate(p);
             } else if (selected.equals("Отменить внесение (Вернуть в ожидание)")) {
-                // ВАЖНО: Вычитаем сумму платежа, но НЕ ТРОГАЕМ свободные средства
                 currentGoal.currentAmount -= p.amount;
                 db.goalDao().update(currentGoal);
                 p.status = "pending";
@@ -306,8 +342,6 @@ public class GoalDetailActivity extends AppCompatActivity {
     private void saveAndRecalculate(Payment p) {
         executor.execute(() -> {
             AppDatabase.getInstance(this).goalDao().updatePayment(p);
-            // НЕ ВЫЗЫВАЕМ recalculateGoalAmount, чтобы не затереть свободные средства.
-            // Сумма уже скорректирована в currentGoal.currentAmount.
             DateUtils.recalculateFutureSchedule(currentGoal, db);
 
             mainHandler.post(() -> {
