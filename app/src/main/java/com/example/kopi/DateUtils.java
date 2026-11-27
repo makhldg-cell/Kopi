@@ -3,7 +3,6 @@ package com.example.kopi;
 import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
@@ -43,98 +42,78 @@ public class DateUtils {
         return 999;
     }
 
-    // Железобетонная функция для поиска следующей даты по календарю
-    private static Date getNextDate(Goal goal, Date lastDate) {
-        Calendar cal = Calendar.getInstance();
-        cal.setTime(lastDate);
-        
-        // Начинаем искать строго со следующего дня после последней даты
-        cal.add(Calendar.DAY_OF_MONTH, 1); 
-
-        if (goal.frequency.equals("Раз в неделю")) {
-            while (cal.get(Calendar.DAY_OF_WEEK) != goal.dayOfWeek) {
-                cal.add(Calendar.DAY_OF_MONTH, 1);
-            }
-            return cal.getTime();
-        } else if (goal.frequency.equals("Раз в месяц")) {
-            int maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
-            int targetDay = Math.min(goal.dayOfMonth1, maxDay);
-            
-            // Если в этом месяце целевой день уже прошел, перескакиваем на следующий
-            if (cal.get(Calendar.DAY_OF_MONTH) > targetDay) {
-                cal.add(Calendar.MONTH, 1);
-                maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
-                targetDay = Math.min(goal.dayOfMonth1, maxDay);
-            }
-            cal.set(Calendar.DAY_OF_MONTH, targetDay);
-            return cal.getTime();
-            
-        } else if (goal.frequency.equals("Два раза в месяц")) {
-            int d1 = Math.min(goal.dayOfMonth1, goal.dayOfMonth2);
-            int d2 = Math.max(goal.dayOfMonth1, goal.dayOfMonth2);
-            
-            int currentDay = cal.get(Calendar.DAY_OF_MONTH);
-            int maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
-            int targetDay1 = Math.min(d1, maxDay);
-            int targetDay2 = Math.min(d2, maxDay);
-            
-            if (currentDay <= targetDay1) {
-                cal.set(Calendar.DAY_OF_MONTH, targetDay1);
-            } else if (currentDay <= targetDay2) {
-                cal.set(Calendar.DAY_OF_MONTH, targetDay2);
-            } else {
-                cal.add(Calendar.MONTH, 1);
-                maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
-                targetDay1 = Math.min(d1, maxDay);
-                cal.set(Calendar.DAY_OF_MONTH, targetDay1);
-            }
-            return cal.getTime();
-        }
-        return cal.getTime();
-    }
-
     public static void recalculateFutureSchedule(Goal goal, AppDatabase db) {
         List<Payment> payments = db.goalDao().getPaymentsForGoal(goal.id);
         
-        // 1. Ищем последнюю дату среди уже оплаченных или ПРОПУЩЕННЫХ (это критически важно!)
-        Calendar cal = Calendar.getInstance();
-        Date lastHandledDate = new Date(); 
-        boolean hasHandled = false;
-        
+        // 1. Ищем последнюю дату среди уже оплаченных или ПРОПУЩЕННЫХ
+        Date lastHandledDate = null; 
         for (Payment p : payments) {
             if (p.status.equals("paid") || p.status.equals("missed")) {
                 Date d = parseDate(p.date);
-                if (!hasHandled || d.after(lastHandledDate)) {
+                if (lastHandledDate == null || d.after(lastHandledDate)) {
                     lastHandledDate = d;
-                    hasHandled = true;
                 }
             }
         }
 
-        // 2. Удаляем только те платежи, которые еще ждут своей очереди
+        // 2. Удаляем все будущие неоплаченные платежи
         for (Payment p : payments) {
             if (p.status.equals("pending") || p.status.equals("partial")) {
                 db.goalDao().deletePayment(p.id);
             }
         }
 
-        // 3. Считаем, сколько всего взносов нужно с учетом внесенной суммы
+        // 3. Считаем, сколько нужно создать
         double remaining = goal.targetAmount - goal.currentAmount;
         if (remaining <= 0) return;
-
         int paymentsNeeded = (int) Math.ceil(remaining / goal.paymentAmount);
-        
-        // 4. Генерируем новые даты, начиная строго после последней пропущенной/оплаченной
-        Calendar iterCal = Calendar.getInstance();
-        iterCal.setTime(lastHandledDate);
+
+        // 4. Начинаем поиск дат
+        Calendar cal = Calendar.getInstance();
+        if (lastHandledDate != null) {
+            cal.setTime(lastHandledDate);
+            cal.add(Calendar.DAY_OF_MONTH, 1); // Ищем со следующего дня после последнего
+        }
+        // Если lastHandledDate == null, поиск начинается с СЕГОДНЯШНЕГО дня
 
         for (int i = 0; i < paymentsNeeded; i++) {
-            Date nextDate = getNextDate(goal, iterCal.getTime());
-            iterCal.setTime(nextDate);
-            
-            Payment p = createPayment(goal, nextDate);
+            cal = getNextMatchingDate(goal, cal);
+            Payment p = createPayment(goal, cal.getTime());
             db.goalDao().insertPayment(p);
+            
+            // Сдвигаем на следующий день, чтобы искать следующий платеж
+            cal.add(Calendar.DAY_OF_MONTH, 1); 
         }
+    }
+
+    // Перебор дней до совпадения (защита от любых сбоев календаря)
+    private static Calendar getNextMatchingDate(Goal goal, Calendar cal) {
+        int maxDays = 365 * 5; // Ограничитель на 5 лет вперед
+        while (maxDays > 0) {
+            if (matchesFrequency(goal, cal)) {
+                return cal;
+            }
+            cal.add(Calendar.DAY_OF_MONTH, 1);
+            maxDays--;
+        }
+        return cal;
+    }
+
+    private static boolean matchesFrequency(Goal goal, Calendar cal) {
+        if (goal.frequency.equals("Раз в неделю")) {
+            return cal.get(Calendar.DAY_OF_WEEK) == goal.dayOfWeek;
+        } else if (goal.frequency.equals("Раз в месяц")) {
+            int maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
+            int targetDay = Math.min(goal.dayOfMonth1, maxDay);
+            return cal.get(Calendar.DAY_OF_MONTH) == targetDay;
+        } else if (goal.frequency.equals("Два раза в месяц")) {
+            int maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
+            int d1 = Math.min(goal.dayOfMonth1, maxDay);
+            int d2 = Math.min(goal.dayOfMonth2, maxDay);
+            int currentDay = cal.get(Calendar.DAY_OF_MONTH);
+            return currentDay == d1 || currentDay == d2;
+        }
+        return false;
     }
 
     public static void applyToNearestPayments(Goal goal, AppDatabase db, double amount) {
