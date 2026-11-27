@@ -26,11 +26,11 @@ public class NotificationActionReceiver extends BroadcastReceiver {
                         p.remainingAmount = 0;
                         db.goalDao().updatePayment(p);
                         
-                        // 2. Прибавляем сумму напрямую к цели (вместо удаленного метода)
+                        // 2. Прибавляем сумму к общему прогрессу (чтобы не падало из-за старого метода)
                         goal.currentAmount += p.amount;
                         db.goalDao().update(goal);
                         
-                        // 3. Пересчитываем будущий график
+                        // 3. Пересчитываем график
                         DateUtils.recalculateFutureSchedule(goal, db);
                         
                         Toast.makeText(context, "Взнос по цели «" + goal.name + "» учтен!", Toast.LENGTH_LONG).show();
