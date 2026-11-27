@@ -70,7 +70,6 @@ public class GoalDetailActivity extends AppCompatActivity {
             }
         });
 
-        // Редактирование свободных средств
         tvUnallocatedFunds.setOnClickListener(v -> {
             double unallocated = getUnallocatedFunds();
             if (unallocated <= 0) {
@@ -177,6 +176,7 @@ public class GoalDetailActivity extends AppCompatActivity {
         double unallocated = getUnallocatedFunds();
         if (unallocated > 0) {
             tvUnallocatedFunds.setVisibility(View.VISIBLE);
+            // ИСПОЛЬЗУЕМ formatMoney ДЛЯ КРАСИВОГО ВЫВОДА
             tvUnallocatedFunds.setText("Свободные средства (вне графика): " + DateUtils.formatMoney(unallocated) + " " + currentGoal.currency + " (нажмите для изменения)");
         } else {
             tvUnallocatedFunds.setVisibility(View.GONE);
@@ -243,7 +243,6 @@ public class GoalDetailActivity extends AppCompatActivity {
     }
 
     private void showEditPaymentDialog(Payment p) {
-        // ПРОВЕРКА СТРОГОГО РЕЖИМА
         if (currentGoal.isStrictMode) {
             long days = DateUtils.daysUntilNextPayment(goalId, db);
             if (days > 0 && DateUtils.parseDate(p.date).after(new java.util.Date())) {
@@ -281,6 +280,7 @@ public class GoalDetailActivity extends AppCompatActivity {
                 applyAmount(amountToPay, true);
             } else if (selected.startsWith("Отметить как Пропущен")) {
                 if (p.status.equals("paid")) {
+                    // ВАЖНО: Если отменяем оплаченный, вычитаем его из общего прогресса
                     currentGoal.currentAmount -= p.amount;
                     db.goalDao().update(currentGoal);
                 }
@@ -292,6 +292,7 @@ public class GoalDetailActivity extends AppCompatActivity {
                 p.remainingAmount = p.amount;
                 saveAndRecalculate(p);
             } else if (selected.equals("Отменить внесение (Вернуть в ожидание)")) {
+                // ВАЖНО: Вычитаем сумму платежа, но НЕ ТРОГАЕМ свободные средства
                 currentGoal.currentAmount -= p.amount;
                 db.goalDao().update(currentGoal);
                 p.status = "pending";
@@ -305,7 +306,8 @@ public class GoalDetailActivity extends AppCompatActivity {
     private void saveAndRecalculate(Payment p) {
         executor.execute(() -> {
             AppDatabase.getInstance(this).goalDao().updatePayment(p);
-            DateUtils.recalculateGoalAmount(currentGoal, db);
+            // НЕ ВЫЗЫВАЕМ recalculateGoalAmount, чтобы не затереть свободные средства.
+            // Сумма уже скорректирована в currentGoal.currentAmount.
             DateUtils.recalculateFutureSchedule(currentGoal, db);
 
             mainHandler.post(() -> {
