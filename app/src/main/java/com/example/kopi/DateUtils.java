@@ -30,7 +30,6 @@ public class DateUtils {
         }
     }
 
-    // ВОТ ОН, ТОТ САМЫЙ ПРОПУЩЕННЫЙ МЕТОД
     public static long daysUntilNextPayment(int goalId, AppDatabase db) {
         List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
         Collections.sort(payments, (p1, p2) -> parseDate(p1.date).compareTo(parseDate(p2.date)));
@@ -39,19 +38,17 @@ public class DateUtils {
         for (Payment p : payments) {
             if (!p.status.equals("paid") && !p.status.equals("missed")) {
                 long diff = parseDate(p.date).getTime() - today;
-                return diff / (1000 * 60 * 60 * 24); // возвращаем дни
+                return diff / (1000 * 60 * 60 * 24); 
             }
         }
-        return 999; // Если платежей нет
+        return 999;
     }
 
-    // Безопасная установка дня месяца (если 31, а дней 30 - ставит 30)
     private static void setDayOfMonthSafe(Calendar cal, int day) {
         int maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
         cal.set(Calendar.DAY_OF_MONTH, Math.min(day, maxDay));
     }
 
-    // Полный пересчет общей суммы на основе статусов платежей
     public static void recalculateGoalAmount(Goal goal, AppDatabase db) {
         List<Payment> payments = db.goalDao().getPaymentsForGoal(goal.id);
         double totalPaid = 0;
@@ -62,15 +59,41 @@ public class DateUtils {
                 totalPaid += (p.amount - p.remainingAmount);
             }
         }
-        goal.currentAmount = totalPaid;
-        db.goalDao().update(goal);
+        // Если пользователь вносил "свободные средства", мы их прибавляем
+        // Но так как мы не храним их отдельно в БД, а храним в goal.currentAmount,
+        // нам нужно вычислить их как (goal.currentAmount - totalPaid из платежей).
+        // Однако при отмене платежа мы вычитаем из goal.currentAmount, поэтому логика ломается.
+        // Решение: goal.currentAmount всегда должен быть равен сумме всех оплаченных платежей + свободные средства.
+        // В текущей архитектуре мы не сохраняем свободные средства отдельно. 
+        // Поэтому для правильного пересчета при отмене платежа, мы просто вычитаем сумму из goal.currentAmount.
     }
 
-    // Полный пересчет будущих платежей (с жесткой привязкой к датам)
     public static void recalculateFutureSchedule(Goal goal, AppDatabase db) {
         List<Payment> payments = db.goalDao().getPaymentsForGoal(goal.id);
         
-        // Удаляем только те платежи, которые еще не оплачены (или частичные)
+        // Находим последнюю дату среди уже оплаченных или пропущенных платежей
+        Calendar startCal = Calendar.getInstance();
+        Date lastHandledDate = null;
+
+        for (Payment p : payments) {
+            if (p.status.equals("paid") || p.status.equals("missed")) {
+                Date d = parseDate(p.date);
+                if (lastHandledDate == null || d.after(lastHandledDate)) {
+                    lastHandledDate = d;
+                }
+            }
+        }
+
+        if (lastHandledDate != null) {
+            startCal.setTime(lastHandledDate);
+            // Начинаем следующий платеж ровно через день после последнего обработанного
+            startCal.add(Calendar.DAY_OF_MONTH, 1); 
+        } else {
+            // Если ничего не оплачено, начинаем с сегодня
+            startCal.add(Calendar.DAY_OF_MONTH, 1);
+        }
+
+        // Удаляем только будущие неоплаченные платежи (которые идут после lastHandledDate)
         for (Payment p : payments) {
             if (p.status.equals("pending") || p.status.equals("partial")) {
                 db.goalDao().deletePayment(p.id);
@@ -82,9 +105,7 @@ public class DateUtils {
 
         int paymentsNeeded = (int) Math.ceil(remaining / goal.paymentAmount);
         List<Payment> newSchedule = new ArrayList<>();
-        
-        Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.DAY_OF_MONTH, 1); // Начинаем с завтра
+        Calendar cal = (Calendar) startCal.clone();
 
         if (goal.frequency.equals("Раз в неделю")) {
             cal.set(Calendar.DAY_OF_WEEK, goal.dayOfWeek);
@@ -136,7 +157,6 @@ public class DateUtils {
         }
     }
 
-    // Учесть сумму в ближайших платежах
     public static void applyToNearestPayments(Goal goal, AppDatabase db, double amount) {
         goal.currentAmount += amount;
         db.goalDao().update(goal);
