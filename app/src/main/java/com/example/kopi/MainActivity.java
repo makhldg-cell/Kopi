@@ -48,8 +48,8 @@ public class MainActivity extends AppCompatActivity {
             requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 101);
         }
 
-        setupNotificationWork(); // Настройка пушей
-        setupBackgroundCheckWork(); // Настройка частоты проверки в фоне
+        setupNotificationWork();
+        setupBackgroundCheckWork();
 
         db = AppDatabase.getInstance(this);
         recyclerView = findViewById(R.id.recyclerView);
@@ -126,7 +126,6 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
-    // Настройка ПУШ-УВЕДОМЛЕНИЙ (строго в заданное время)
     private void setupNotificationWork() {
         boolean isEnabled = prefs.getBoolean(KEY_NOTIFICATIONS_ENABLED, true);
         if (!isEnabled) {
@@ -159,7 +158,6 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
-    // Настройка ФОНОВОЙ ПРОВЕРКИ (частота, для батареи)
     private void setupBackgroundCheckWork() {
         int checkCount = prefs.getInt(KEY_CHECK_COUNT, 1);
         int intervalHours = 24 / checkCount;
@@ -240,8 +238,15 @@ public class MainActivity extends AppCompatActivity {
             .setTitle(goal.name)
             .setItems(new String[]{freezeText, "Удалить цель"}, (dialog, which) -> {
                 if (which == 0) {
+                    boolean wasFrozen = goal.isFrozen;
                     goal.isFrozen = !goal.isFrozen;
                     db.goalDao().update(goal);
+                    
+                    // ВОТ ТУТ МАГИЯ: Если разморозили, пересчитываем график!
+                    if (wasFrozen && !goal.isFrozen) {
+                        DateUtils.recalculateFutureSchedule(goal, db);
+                    }
+                    
                     adapter.updateData(db.goalDao().getAllGoals());
                 } else if (which == 1) {
                     new AlertDialog.Builder(this)
