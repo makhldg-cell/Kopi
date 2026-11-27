@@ -21,13 +21,16 @@ public class NotificationActionReceiver extends BroadcastReceiver {
                 List<Payment> payments = db.goalDao().getPaymentsForGoal(goalId);
                 for (Payment p : payments) {
                     if (p.id == paymentId) {
-                        // Помечаем как оплаченный
+                        // 1. Помечаем как оплаченный
                         p.status = "paid";
                         p.remainingAmount = 0;
                         db.goalDao().updatePayment(p);
                         
-                        // Пересчитываем сумму
-                        DateUtils.recalculateGoalAmount(goal, db);
+                        // 2. Прибавляем сумму напрямую к цели (вместо удаленного метода)
+                        goal.currentAmount += p.amount;
+                        db.goalDao().update(goal);
+                        
+                        // 3. Пересчитываем будущий график
                         DateUtils.recalculateFutureSchedule(goal, db);
                         
                         Toast.makeText(context, "Взнос по цели «" + goal.name + "» учтен!", Toast.LENGTH_LONG).show();
