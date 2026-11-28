@@ -2,6 +2,7 @@ package com.example.kopi;
 
 import android.content.Intent;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -23,7 +24,7 @@ import java.util.concurrent.Executors;
 
 public class GoalDetailActivity extends AppCompatActivity {
     private Goal currentGoal;
-    private TextView tvProgress, tvCalculation, tvUnallocatedFunds;
+    private TextView tvProgress, tvCalculation, tvUnallocatedFunds, tvDetailLink;
     private AppDatabase db;
     private PaymentAdapter adapter;
     private int goalId;
@@ -48,6 +49,7 @@ public class GoalDetailActivity extends AppCompatActivity {
         tvProgress = findViewById(R.id.tvDetailProgress);
         tvCalculation = findViewById(R.id.tvCalculation);
         tvUnallocatedFunds = findViewById(R.id.tvUnallocatedFunds);
+        tvDetailLink = findViewById(R.id.tvDetailLink);
         recyclerView = findViewById(R.id.recyclerViewSchedule);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
@@ -215,7 +217,30 @@ public class GoalDetailActivity extends AppCompatActivity {
             tvUnallocatedFunds.setVisibility(View.GONE);
         }
         
-        ((TextView)findViewById(R.id.tvDetailLink)).setText("Ссылка: " + (currentGoal.link.isEmpty() ? "нет" : currentGoal.link));
+        // ЛОГИКА КЛИКАБЕЛЬНОЙ ССЫЛКИ
+        if (currentGoal.link == null || currentGoal.link.trim().isEmpty()) {
+            tvDetailLink.setText("Ссылка: нет");
+            tvDetailLink.setOnClickListener(null);
+            tvDetailLink.setTextColor(Color.GRAY);
+            tvDetailLink.setPaintFlags(0);
+        } else {
+            tvDetailLink.setText("Открыть ссылку на товар 🔗");
+            tvDetailLink.setTextColor(Color.parseColor("#1976D2")); // Синий цвет
+            tvDetailLink.setPaintFlags(tvDetailLink.getPaintFlags() | android.graphics.Paint.UNDERLINE_TEXT_FLAG); // Подчеркивание
+            tvDetailLink.setOnClickListener(v -> {
+                try {
+                    String url = currentGoal.link;
+                    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                        url = "https://" + url; // Если нет протокола, добавляем https
+                    }
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                    startActivity(browserIntent);
+                } catch (Exception e) {
+                    Toast.makeText(this, "Неверный формат ссылки", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
         ((TextView)findViewById(R.id.tvDetailComment)).setText("Комментарий: " + (currentGoal.comment.isEmpty() ? "нет" : currentGoal.comment));
     }
 
