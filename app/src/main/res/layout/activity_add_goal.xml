@@ -8,8 +8,16 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
         
-        <EditText android:id="@+id/etName" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Название цели" />
+        <!-- ДОБАВЛЕН inputType ДЛЯ ЗАГЛАВНОЙ БУКВЫ -->
+        <EditText 
+            android:id="@+id/etName" 
+            android:layout_width="match_parent" 
+            android:layout_height="wrap_content" 
+            android:hint="Название цели" 
+            android:inputType="textCapSentences"/>
+            
         <EditText android:id="@+id/etTargetAmount" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="К чему стремимся (Сумма)" android:inputType="numberDecimal" android:layout_marginTop="8dp"/>
+        
         <Spinner android:id="@+id/spinnerCurrency" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"/>
         
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Частота взносов (нажмите, чтобы изменить):" android:textStyle="bold" android:textColor="#1976D2" android:layout_marginTop="16dp"/>
@@ -23,7 +31,6 @@
         
         <EditText android:id="@+id/etPaymentAmount" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Сумма одного взноса" android:inputType="numberDecimal" android:layout_marginTop="8dp"/>
         
-        <!-- ПЕРЕКЛЮЧАТЕЛЬ СТРОГОГО РЕЖИМА -->
         <Switch
             android:id="@+id/switchStrictMode"
             android:layout_width="match_parent"
@@ -31,8 +38,16 @@
             android:text="Строгий режим (запрет правок графика до даты взноса)"
             android:layout_marginTop="16dp"/>
 
-        <EditText android:id="@+id/etLink" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Ссылка на товар (опционально)" android:layout_marginTop="8dp"/>
-        <EditText android:id="@+id/etComment" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Комментарий" android:layout_marginTop="8dp"/>
+        <!-- ДОБАВЛЕН inputType ДЛЯ ССЫЛКИ -->
+        <EditText 
+            android:id="@+id/etLink" 
+            android:layout_width="match_parent" 
+            android:layout_height="wrap_content" 
+            android:hint="Ссылка на товар (опционально)" 
+            android:inputType="textUri"
+            android:layout_marginTop="8dp"/>
+            
+        <EditText android:id="@+id/etComment" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Комментарий" android:inputType="textCapSentences" android:layout_marginTop="8dp"/>
         
         <TextView android:id="@+id/tvCalculatedDate" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:textColor="#2E7D32" android:textStyle="bold"/>
         
